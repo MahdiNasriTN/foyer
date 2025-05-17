@@ -1,0 +1,90 @@
+import axios from 'axios';
+
+// Créer une instance axios avec la configuration de base
+const axiosInstance = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Ajouter un intercepteur pour inclure le token JWT dans toutes les requêtes
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Récupérer tous les membres du personnel
+export const getAllPersonnel = async (filters = {}) => {
+  try {
+    const params = new URLSearchParams();
+    
+    // Ajouter les filtres à la requête
+    Object.keys(filters).forEach(key => {
+      if (filters[key] && filters[key] !== 'all') {
+        params.append(key, filters[key]);
+      }
+    });
+    
+    const response = await axiosInstance.get(`/api/v1/personnel?${params.toString()}`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// Récupérer un membre du personnel par ID
+export const getPersonnelById = async (id) => {
+  try {
+    const response = await axiosInstance.get(`/api/v1/personnel/${id}`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// Créer un nouveau membre du personnel
+export const createPersonnel = async (data) => {
+  try {
+    const response = await axiosInstance.post('/api/v1/personnel', data);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// Mettre à jour un membre du personnel
+export const updatePersonnel = async (id, data) => {
+  try {
+    const response = await axiosInstance.put(`/api/v1/personnel/${id}`, data);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// Supprimer un membre du personnel
+export const deletePersonnel = async (id) => {
+  try {
+    const response = await axiosInstance.delete(`/api/v1/personnel/${id}`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// Récupérer les statistiques du personnel
+export const getPersonnelStats = async () => {
+  try {
+    const response = await axiosInstance.get('/api/v1/personnel/stats');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};

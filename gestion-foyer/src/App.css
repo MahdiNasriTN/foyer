@@ -1,0 +1,156 @@
+/* Import des polices Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+.App {
+  text-align: center;
+}
+
+/* Styles de typographie personnalisés */
+:root {
+  --font-primary: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-heading: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-special: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Application des polices au document */
+body {
+  font-family: var(--font-primary);
+  font-feature-settings: 'liga' 1, 'calt' 1; /* Pour optimiser le rendu des ligatures */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Classes de typographie réutilisables */
+.font-heading {
+  font-family: var(--font-heading);
+  letter-spacing: -0.025em;
+}
+
+.font-special {
+  font-family: var(--font-special);
+}
+
+/* Personnalisation des titres */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.025em;
+  font-weight: 600;
+}
+
+/* Personnalisation de certains éléments spécifiques */
+.sidebar-title {
+  font-family: var(--font-special);
+  font-weight: 600;
+}
+
+.card-title {
+  font-family: var(--font-heading);
+  letter-spacing: -0.01em;
+}
+
+.stat-value {
+  font-family: var(--font-special);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.tag, .badge, .chip, .label {
+  font-family: var(--font-primary);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* Boutons avec meilleure typographie */
+.btn {
+  @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-200;
+  font-family: var(--font-primary);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+  
+.btn-white {
+  @apply bg-white text-primary hover:bg-blue-50;
+}
+  
+.btn-translucent {
+  @apply bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 border border-white/30;
+}
+  
+.btn-primary {
+  @apply bg-primary text-white hover:bg-primary-dark;
+}
+
+/* Amélioration des textes en petit */
+.text-small, .text-xs, .text-sm {
+  letter-spacing: 0.01em;
+}
+
+/* Amélioration des textes de tableaux */
+table thead th {
+  font-family: var(--font-primary);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Styles d'animation existants */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 0.15; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Personnalisation de la scrollbar */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(79, 70, 229, 0.2);
+  border-radius: 20px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(79, 70, 229, 0.4);
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
