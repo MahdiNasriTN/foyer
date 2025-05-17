@@ -157,7 +157,7 @@ const Documentation = () => {
                   {activeSectionData.title}
                 </h1>
               </div>
-              <div className="flex items-center space-x-2">
+              {/* <div className="flex items-center space-x-2">
                 <a 
                   href={`https://github.com/yourusername/ges_foyer/edit/main/docs/${activeSection}.md`}
                   target="_blank"
@@ -171,7 +171,7 @@ const Documentation = () => {
                   </svg>
                   Modifier cette page
                 </a>
-              </div>
+              </div> */}
             </div>
           </div>
 

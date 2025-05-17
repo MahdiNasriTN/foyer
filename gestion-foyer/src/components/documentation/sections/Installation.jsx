@@ -38,7 +38,7 @@ const Installation = ({ colorMode }) => {
         title="Terminal"
         colorMode={colorMode}
       >{`# Cloner le dépôt
-git clone https://github.com/yourusername/ges_foyer.git
+git clone https://github.com/MahdiNasriTN/foyer
 
 # Naviguer vers le répertoire du projet
 cd ges_foyer
@@ -56,7 +56,7 @@ cp .env.example .env
 # Éditer le fichier .env avec votre configuration
 
 # Démarrer le serveur backend
-npm run dev
+nodemon server
 
 # Dans un nouveau terminal, démarrer le frontend
 cd ../ges_foyer
@@ -81,11 +81,7 @@ npm start`}</CodeBlock>
 NODE_ENV=development
 MONGO_URI=mongodb://localhost:27017/ges_foyer
 JWT_SECRET=votre_secret_jwt
-JWT_EXPIRE=30d
-EMAIL_SERVICE=gmail
-EMAIL_USERNAME=votre_email@gmail.com
-EMAIL_PASSWORD=votre_mot_de_passe_email
-EMAIL_FROM=votre_email@gmail.com`}</CodeBlock>
+JWT_EXPIRE=30d`}</CodeBlock>
         </div>
         
         <div>

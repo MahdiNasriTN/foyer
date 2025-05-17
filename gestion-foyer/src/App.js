@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
+// import Dashboard from './pages/Dashboard';
 import Chambres from './pages/Chambres';
 import Stagiaires from './pages/Stagiaires';
 // import Cuisine from './pages/Cuisine';
@@ -96,10 +96,18 @@ function App() {
           } 
         />
         
-        <Route path="/" element={
+        {/* <Route path="/" element={
           <ProtectedRoute isAuthenticated={isAuthenticated}>
             <Layout user={user} onLogout={handleLogout}>
               <Dashboard />
+            </Layout>
+          </ProtectedRoute>
+        } /> */}
+
+        <Route path="/" element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <Layout user={user} onLogout={handleLogout}>
+              <Stagiaires />
             </Layout>
           </ProtectedRoute>
         } />

@@ -216,12 +216,6 @@ const DemarrageRapide = ({ colorMode }) => {
         <div className="flex items-center">
           <ChevronRightIcon className="h-5 w-5 mr-2 text-blue-500" />
           <p>
-            <span className="font-medium">Gestion des paiements:</span> Configurez les options de paiement, les tarifs et les échéances pour les résidents.
-          </p>
-        </div>
-        <div className="flex items-center">
-          <ChevronRightIcon className="h-5 w-5 mr-2 text-blue-500" />
-          <p>
             <span className="font-medium">Personnalisation des rapports:</span> Créez des rapports personnalisés pour suivre les activités et performances du foyer.
           </p>
         </div>
