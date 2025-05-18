@@ -8,7 +8,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
   const [animatePhoto, setAnimatePhoto] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  
+
   const [formData, setFormData] = useState(initialData || {
     firstName: '',
     lastName: '',
@@ -26,6 +26,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     centerName: '',
     specialization: '',
     cycle: '',
+    sessionYear: new Date().getFullYear().toString(), // Default to current year
     email: '',
     fatherFirstName: '',
     fatherLastName: '',
@@ -52,7 +53,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
-    
+
     // Pour les champs numériques
     if (type === 'number') {
       setFormData({ ...formData, [name]: value === '' ? '' : Number(value) });
@@ -64,7 +65,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true);
     } else if (e.type === 'dragleave') {
@@ -76,7 +77,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFile(e.dataTransfer.files[0]);
     }
@@ -97,7 +98,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
       alert('Veuillez sélectionner une image valide.');
       return;
     }
-    
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const base64Image = e.target.result;
@@ -148,45 +149,61 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
   };
 
   const fillTestData = () => {
-  const testData = {
-    firstName: 'Mahdi',
-    lastName: 'Nasri',
-    cinNumber: '09876543',
-    cinPlace: 'Tunis',
-    cinDate: '2020-05-15',
-    dateOfBirth: '1998-03-12',
-    placeOfBirth: 'Sousse',
-    nationality: 'Tunisienne',
-    currentSituation: 'Étudiant',
-    phoneNumber: '55123456',
-    sendingAddress: '25 Rue Ibn Khaldoun',
-    city: 'Tunis',
-    postalCode: '1002',
-    centerName: 'Institut Supérieur d\'Informatique',
-    specialization: 'Développement Web',
-    cycle: 'Licence',
-    email: 'mahdi.nasri@example.com',
-    fatherFirstName: 'Ahmed',
-    fatherLastName: 'Nasri',
-    fatherPhone: '98765432',
-    fatherJob: 'Ingénieur',
-    fatherJobPlace: 'Société ABC',
-    motherFirstName: 'Fatima',
-    motherLastName: 'Nasri',
-    motherPhone: '55667788',
-    motherJob: 'Médecin',
-    motherJobPlace: 'Hôpital X',
-    numberOfBrothers: 1,
-    numberOfSisters: 2,
-    hobby: 'Football, Lecture, Voyages',
-    trainingPeriodFrom: '2023-09-01',
-    trainingPeriodTo: '2024-06-30',
-    sexe: 'garcon'
-  };
-  
-  setFormData(testData);
-};
+    const testData = {
+      firstName: 'Mahdi',
+      lastName: 'Nasri',
+      cinNumber: '09876543',
+      cinPlace: 'Tunis',
+      cinDate: '2020-05-15',
+      dateOfBirth: '1998-03-12',
+      placeOfBirth: 'Sousse',
+      nationality: 'Tunisienne',
+      currentSituation: 'Étudiant',
+      phoneNumber: '55123456',
+      sendingAddress: '25 Rue Ibn Khaldoun',
+      city: 'Tunis',
+      postalCode: '1002',
+      centerName: 'Institut Supérieur d\'Informatique',
+      specialization: 'Développement Web',
+      cycle: 'sep',
+      sessionYear: new Date().getFullYear().toString(),
+      email: 'mahdi.nasri@example.com',
+      fatherFirstName: 'Ahmed',
+      fatherLastName: 'Nasri',
+      fatherPhone: '98765432',
+      fatherJob: 'Ingénieur',
+      fatherJobPlace: 'Société ABC',
+      motherFirstName: 'Fatima',
+      motherLastName: 'Nasri',
+      motherPhone: '55667788',
+      motherJob: 'Médecin',
+      motherJobPlace: 'Hôpital X',
+      numberOfBrothers: 1,
+      numberOfSisters: 2,
+      hobby: 'Football, Lecture, Voyages',
+      trainingPeriodFrom: '2023-09-01',
+      trainingPeriodTo: '2024-06-30',
+      sexe: 'garcon'
+    };
 
+    setFormData(testData);
+  };
+
+  const generateYearOptions = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    
+    // Generate options for 5 years back and 5 years forward
+    for (let year = currentYear - 5; year <= currentYear + 5; year++) {
+      years.push(
+        <option key={year} value={year.toString()}>
+          {year}
+        </option>
+      );
+    }
+    
+    return years;
+  };
 
   const inputClass = "mt-1 block w-full px-4 py-3 rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none transition-all duration-200 ease-in-out";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
@@ -198,7 +215,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
       <h2 className="text-4xl font-bold text-blue-800 mb-5 text-center">
         {isEditing ? 'Modifier un Stagiaire' : 'Ajouter un Stagiaire'}
       </h2>
-      
+
       {/* Bouton de test pour remplir automatiquement le formulaire */}
       <div className="flex justify-end mb-6">
         <button
@@ -212,35 +229,35 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
           Remplir avec données test
         </button>
       </div>
-      
+
       {error && (
         <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
           <p className="font-medium">Erreur</p>
           <p>{error}</p>
         </div>
       )}
-      
+
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Photo de profil - NOUVELLE SECTION PREMIUM */}
         <div className={`${sectionClass} relative overflow-hidden`}>
           {/* Éléments décoratifs de fond */}
           <div className="absolute w-64 h-64 rounded-full bg-blue-50 -top-20 -right-20 opacity-50"></div>
           <div className="absolute w-40 h-40 rounded-full bg-indigo-50 -bottom-10 -left-10 opacity-50"></div>
-          
+
           <h3 className={sectionHeaderClass}>
             <span className="bg-indigo-100 text-indigo-700 p-1.5 rounded-lg">📷</span>
             Photo de Profil
           </h3>
-          
+
           <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
             {/* Zone de téléchargement premium */}
-            <div 
+            <div
               className={`
                 transition-all duration-500 ease-out transform
                 ${animatePhoto ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}
               `}
             >
-              <div 
+              <div
                 className={`
                   relative w-60 h-60 mx-auto overflow-hidden rounded-xl shadow-2xl
                   transition-all duration-300 ease-out cursor-pointer
@@ -257,18 +274,18 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                 {!previewImage && (
                   <div className="absolute inset-0 bg-white/40 backdrop-blur-sm"></div>
                 )}
-                
+
                 {/* Aperçu de l'image */}
                 {previewImage ? (
                   <>
-                    <img 
-                      src={previewImage} 
-                      alt="Aperçu" 
+                    <img
+                      src={previewImage}
+                      alt="Aperçu"
                       className="h-full w-full object-cover transition-all duration-700 ease-out"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-4">
                       <div className="space-x-2">
-                        <button 
+                        <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -278,7 +295,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                         >
                           Modifier
                         </button>
-                        <button 
+                        <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -309,7 +326,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                     </span>
                   </div>
                 )}
-                
+
                 {/* Input file caché */}
                 <input
                   ref={fileInputRef}
@@ -319,13 +336,13 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                   className="hidden"
                 />
               </div>
-              
+
               {/* Badge premium de qualité d'image */}
               <div className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-xs text-white px-2 py-1 rounded-full shadow-lg">
                 PHOTO
               </div>
             </div>
-            
+
             {/* Conseils et informations */}
             <div className={`
               flex-1 space-y-4 transition-all duration-500 ease-out transform
@@ -366,7 +383,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                   </li>
                 </ul>
               </div>
-              
+
               {/* Formats acceptés */}
               <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
                 <div className="text-sm text-gray-700">
@@ -555,7 +572,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                 className={inputClass}
               />
             </div>
-            
+
             {/* Ajout du champ email */}
             <div>
               <label htmlFor="email" className={labelClass}>
@@ -572,7 +589,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                 className={inputClass}
               />
             </div>
-            
+
             {/* Adresse complète - prend toute la ligne */}
             <div className="md:col-span-3 mt-4">
               <h4 className="text-lg font-semibold text-blue-700 mb-4 flex items-center">
@@ -582,7 +599,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                 </svg>
                 Adresse
               </h4>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-3">
                   <label htmlFor="sendingAddress" className={labelClass}>
@@ -669,23 +686,45 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                 className={inputClass}
               />
             </div>
-            <div>
-              <label htmlFor="cycle" className={labelClass}>
-                Session
-              </label>
-              <select
-                id="cycle"
-                name="cycle"
-                value={formData.cycle}
-                onChange={handleChange}
-                className={inputClass}
-              >
-                <option value="">Sélectionnez un cycle</option>
-                <option value="Licence">Licence</option>
-                <option value="Master">Master</option>
-                <option value="Doctorat">Doctorat</option>
-              </select>
+
+            {/* Replace the single cycle dropdown with a grid of two fields */}
+            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="cycle" className={labelClass}>
+                  Session
+                </label>
+                <select
+                  id="cycle"
+                  name="cycle"
+                  value={formData.cycle}
+                  onChange={handleChange}
+                  className={inputClass}
+                  required
+                >
+                  <option value="">Sélectionnez une session</option>
+                  <option value="sep">Septembre</option>
+                  <option value="nov">Novembre</option>
+                  <option value="fev">Février</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="sessionYear" className={labelClass}>
+                  Année de session
+                </label>
+                <select
+                  id="sessionYear"
+                  name="sessionYear"
+                  value={formData.sessionYear}
+                  onChange={handleChange}
+                  className={inputClass}
+                  required
+                >
+                  <option value="">Sélectionnez une année</option>
+                  {generateYearOptions()}
+                </select>
+              </div>
             </div>
+
             <div>
               <label htmlFor="trainingPeriodFrom" className={labelClass}>
                 Début de formation ou stage
@@ -942,7 +981,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
             </svg>
             Annuler
           </button>
-          
+
           {/* Modifier le bouton de soumission pour montrer l'état de chargement */}
           <button
             type="submit"

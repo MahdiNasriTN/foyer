@@ -1,5 +1,13 @@
 const mongoose = require('mongoose');
 
+// Create a separate model for the counter
+const CounterSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  value: { type: Number, default: 1000 }
+});
+
+const Counter = mongoose.model('Counter', CounterSchema);
+
 /**
  * @swagger
  * components:
@@ -70,8 +78,9 @@ const stagiaireSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Last name is required']
   },
-  nom: {
-    type: String
+  identifier: {
+    type: String,
+    unique: true
   },
   email: {
     type: String,
@@ -81,6 +90,15 @@ const stagiaireSchema = new mongoose.Schema({
       /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
       'Please provide a valid email'
     ]
+  },
+  cycle: {
+    type: String,
+    enum: ['sep', 'nov', 'fev'],
+    required: [true, 'Cycle is required']
+  },
+  sessionYear: {
+    type: String,
+    required: [true, 'Session year is required']
   },
   telephone: {
     type: String
@@ -210,7 +228,36 @@ const stagiaireSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Virtual property for full name
+// Modify pre-save middleware to use cycle instead of session
+stagiaireSchema.pre('save', async function(next) {
+  try {
+    // Only generate identifier if it doesn't exist
+    if (!this.identifier) {
+      // Make sure cycle is lowercase and has a default if undefined
+      const cycle = this.cycle ? this.cycle.toLowerCase() : 'sep';
+      
+      // Make sure sessionYear has a default if undefined
+      const year = this.sessionYear 
+        ? this.sessionYear.toString().substring(2) 
+        : new Date().getFullYear().toString().substring(2);
+      
+      // Find the counter document or create it if it doesn't exist
+      const counter = await Counter.findOneAndUpdate(
+        { name: 'stagiaireCounter' },
+        { $inc: { value: 1 } },
+        { new: true, upsert: true }
+      );
+      
+      // Generate the identifier with session prefix, year, and counter value
+      this.identifier = `${cycle}${year}-${counter.value}`;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Add virtual for full name
 stagiaireSchema.virtual('fullName').get(function() {
   return `${this.firstName} ${this.lastName}`;
 });

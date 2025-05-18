@@ -88,6 +88,11 @@ export const fetchStagiaires = async (filters = {}) => {
     // Construction des paramètres de requête à partir des filtres
     let queryParams = new URLSearchParams();
     
+    // Add search parameter if provided
+    if (filters.search) {
+      queryParams.append('search', filters.search);
+    }
+    
     // Traitement des différents filtres
     if (filters.status && filters.status !== 'all') {
       queryParams.append('status', filters.status);
@@ -107,6 +112,11 @@ export const fetchStagiaires = async (filters = {}) => {
     
     if (filters.session && filters.session !== 'all') {
       queryParams.append('session', filters.session);
+    }
+    
+    // Add year filter
+    if (filters.year && filters.year !== 'all') {
+      queryParams.append('year', filters.year);
     }
     
     if (filters.startDate) {

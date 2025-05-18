@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 // Remplacer les imports de mocks par des appels API
 import { fetchStagiaires, deleteStagiaire, createInternStagiaire, createExternStagiaire, updateStagiaire } from '../services/api';
 import { mockChambres, mockStagiaires } from '../utils/mockData'; // Garder les chambres mockées pour le moment
@@ -15,11 +15,11 @@ import AddExternIntern from '../components/stagiaires/AddExternIntern';
 // Assurez-vous d'exporter cette fonction helper et de l'utiliser dans StagiairesList
 export const getDisplayableChambre = (chambre) => {
   if (!chambre) return "Non assignée";
-  
+
   if (typeof chambre === 'object') {
     return chambre.numero ? `N°${chambre.numero}` : "Non assignée";
   }
-  
+
   return chambre.toString();
 };
 
@@ -55,50 +55,81 @@ const Stagiaires = () => {
     room: 'all',
     gender: 'all',
     session: 'all',
+    year: 'all',  // Add year filter
     startDate: '',
     endDate: '',
     specificRoom: ''
   });
+  // Add a new state for debouncing
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
+  // Create a debounced search handler using useCallback
+  const debouncedSearch = useCallback(
+    (searchValue) => {
+      // Clear any existing timeout
+      if (window.searchTimeout) {
+        clearTimeout(window.searchTimeout);
+      }
+
+      // Set a new timeout
+      window.searchTimeout = setTimeout(() => {
+        setDebouncedSearchTerm(searchValue);
+        // Load stagiaires with search parameter
+        const searchParams = {
+          ...filters,
+          search: searchValue
+        };
+        loadStagiaires(searchParams);
+      }, 1000); // 1 second delay
+    },
+    [filters]
+  );
 
   // Charger la liste des stagiaires depuis l'API
+  // Update your loadStagiaires function
   const loadStagiaires = async (filterParams = filters) => {
-  setLoading(true);
-  setError(null);
-  try {
-    const response = await fetchStagiaires(filterParams);
-    // Déterminer la bonne propriété qui contient le tableau de stagiaires
-    let stagiairesList = [];
-    
-    if (response.data && response.data.data && response.data.data.stagiaires) {
-      stagiairesList = response.data.data.stagiaires;
-    } else if (response.data && response.data.stagiaires) {
-      stagiairesList = response.data.stagiaires;
-    } else if (response.data && Array.isArray(response.data)) {
-      stagiairesList = response.data;
-    } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
-      stagiairesList = response.data.data;
-    } else {
-      stagiairesList = [];
+    setLoading(true);
+    setError(null);
+    try {
+      // Make sure to include search term if it exists
+      const searchParams = {
+        ...filterParams,
+        search: debouncedSearchTerm || filterParams.search
+      };
+
+      const response = await fetchStagiaires(searchParams);
+
+      // Rest of your function remains the same
+      let stagiairesList = [];
+
+      if (response.data && response.data.data && response.data.data.stagiaires) {
+        stagiairesList = response.data.data.stagiaires;
+      } else if (response.data && response.data.stagiaires) {
+        stagiairesList = response.data.stagiaires;
+      } else if (response.data && Array.isArray(response.data)) {
+        stagiairesList = response.data;
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        stagiairesList = response.data.data;
+      } else {
+        stagiairesList = [];
+      }
+
+      const processedStagiaires = stagiairesList.map(stagiaire => ({
+        ...stagiaire,
+        id: stagiaire._id || stagiaire.id
+      }));
+
+      setStagiaires(processedStagiaires);
+      setFilteredStagiaires(processedStagiaires);
+    } catch (err) {
+      console.error("Erreur lors du chargement des stagiaires:", err);
+      setError("Impossible de charger les stagiaires. Veuillez réessayer.");
+      setStagiaires([]);
+      setFilteredStagiaires([]);
+    } finally {
+      setLoading(false);
     }
-    
-    // Ajuster le traitement des IDs si nécessaire
-    const processedStagiaires = stagiairesList.map(stagiaire => ({
-      ...stagiaire,
-      id: stagiaire._id || stagiaire.id // MongoDB utilise _id
-    }));
-    
-    
-    setStagiaires(processedStagiaires);
-    setFilteredStagiaires(processedStagiaires);
-  } catch (err) {
-    console.error("Erreur lors du chargement des stagiaires:", err);
-    setError("Impossible de charger les stagiaires. Veuillez réessayer.");
-    setStagiaires([]);
-    setFilteredStagiaires([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     loadStagiaires();
@@ -111,19 +142,19 @@ const Stagiaires = () => {
       acc[chambre.numero] = { ...chambre, occupants: 0 };
       return acc;
     }, {});
-    
+
     // Compter les occupants actuels (étudiants et stagiaires)
     [...stagiaires, ...mockStagiaires].forEach(occupant => {
       if (occupant.chambre && occupationMap[occupant.chambre]) {
         occupationMap[occupant.chambre].occupants += 1;
       }
     });
-    
+
     // Convertir en tableau et filtrer les chambres qui ne sont pas pleines
     const chambres = Object.values(occupationMap).filter(
       chambre => chambre.occupants < chambre.capacite
     );
-    
+
     setChambresDisponibles(chambres);
   }, [stagiaires]);
 
@@ -141,25 +172,15 @@ const Stagiaires = () => {
     const depart = new Date(stagiaire.dateDepart);
     return now >= arrivee && now <= depart;
   };
-  
+
   // Filtrage et tri des stagiaires
   useEffect(() => {
     let result = [...stagiaires];
-    
+
     if (searchTerm) {
-      result = result.filter(stagiaire => {
-        // Traiter le cas où chambre est un objet
-        const chambreStr = typeof stagiaire.chambre === 'object' 
-          ? stagiaire.chambre?.numero || '' 
-          : stagiaire.chambre || '';
-        
-        return stagiaire.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          chambreStr.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
-          stagiaire.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          stagiaire.entreprise.toLowerCase().includes(searchTerm.toLowerCase());
-      });
+      result = filterStagiaires(result, searchTerm);
     }
-    
+
     // Filtrage par statut et chambre
     if (selectedFilter === 'active') {
       result = result.filter(stagiaire => isStagiaireActif(stagiaire));
@@ -170,22 +191,22 @@ const Stagiaires = () => {
     } else if (selectedFilter === 'withoutRoom') {
       result = result.filter(stagiaire => !stagiaire.chambre);
     }
-    
+
     // Tri
     result.sort((a, b) => {
-      let aValue = a[sortBy];
-      let bValue = b[sortBy];
-      
+      let aValue = a[sortBy] || ''; // Add default empty string
+      let bValue = b[sortBy] || ''; // Add default empty string
+
       if (sortBy === 'dateArrivee') {
         aValue = new Date(aValue);
         bValue = new Date(bValue);
       }
-      
+
       if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
       return 0;
     });
-    
+
     setFilteredStagiaires(result);
     setCurrentPage(1); // Retour à la première page après filtrage
   }, [stagiaires, searchTerm, sortBy, sortOrder, selectedFilter]);
@@ -197,11 +218,11 @@ const Stagiaires = () => {
       console.warn('filteredStagiaires is not an array:', filteredStagiaires);
       return [];
     }
-    
+
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredStagiaires.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredStagiaires, currentPage, itemsPerPage]);
-  
+
   const totalPages = Math.max(1, Math.ceil(filteredStagiaires.length / itemsPerPage));
 
   // Statistiques
@@ -210,7 +231,7 @@ const Stagiaires = () => {
     const withRoom = stagiaires.filter(s => s.chambre).length;
     const withoutRoom = totalStagiaires - withRoom;
     const active = stagiaires.filter(s => isStagiaireActif(s)).length;
-    
+
     // Calcul de la durée moyenne des stages en jours
     const averageDuration = stagiaires.length > 0 ? Math.round(
       stagiaires.reduce((acc, s) => {
@@ -220,7 +241,7 @@ const Stagiaires = () => {
         return acc + duration;
       }, 0) / stagiaires.length
     ) : 0;
-    
+
     return {
       total: totalStagiaires,
       withRoom,
@@ -247,10 +268,8 @@ const Stagiaires = () => {
   };
 
   const handleOpenDeleteModal = (id) => {
-    const stagiaire = getStagiaireById(id);
-    setModalType('delete');
-    setCurrentStagiaire(stagiaire);
-    setModalOpen(true);
+    // No need to set modal state - the StagiairesList component handles its own modal
+    // Just ensure we're passing the right delete handler function to StagiairesList
   };
 
   const handleCloseModal = () => {
@@ -266,7 +285,7 @@ const Stagiaires = () => {
       }
     } else if (modalType === 'edit') {
       // Modifier stagiaire existant
-      setStagiaires(stagiaires.map(s => 
+      setStagiaires(stagiaires.map(s =>
         s.id === formData.id ? { ...formData } : s
       ));
     } else {
@@ -274,7 +293,7 @@ const Stagiaires = () => {
       const newId = Math.max(...stagiaires.map(s => s.id), 0) + 1;
       setStagiaires([...stagiaires, { ...formData, id: newId }]);
     }
-    
+
     setModalOpen(false);
   };
 
@@ -291,15 +310,15 @@ const Stagiaires = () => {
   };
 
   // Fonction pour obtenir les informations de chambre à afficher de manière sécurisée
-const getDisplayableChambre = (chambre) => {
-  if (!chambre) return "Non assignée";
-  
-  if (typeof chambre === 'object') {
-    return chambre.numero ? `N°${chambre.numero}` : "Non assignée";
-  }
-  
-  return chambre.toString();
-};
+  const getDisplayableChambre = (chambre) => {
+    if (!chambre) return "Non assignée";
+
+    if (typeof chambre === 'object') {
+      return chambre.numero ? `N°${chambre.numero}` : "Non assignée";
+    }
+
+    return chambre.toString();
+  };
 
   // Toggles du tri
   const toggleSort = (field) => {
@@ -322,9 +341,9 @@ const getDisplayableChambre = (chambre) => {
     setIsAddingExtern(true);
     setIsAddingIntern(false);
   };
-  
-  
-  
+
+
+
   // Fonction pour sauvegarder un nouveau stagiaire interne
   const handleSaveIntern = async (stagiaireData) => {
     setLoading(true);
@@ -332,17 +351,17 @@ const getDisplayableChambre = (chambre) => {
       // Le stagiaire a déjà été sauvegardé dans l'API par le composant AddIntern
       // Recharger la liste complète
       await loadStagiaires();
-      
+
       // Réinitialiser les états
       setIsAddingIntern(false);
       setCurrentStagiaire(null);
-      
+
       setNotification({
         show: true,
         message: currentStagiaire ? 'Stagiaire mis à jour avec succès' : 'Stagiaire ajouté avec succès',
         type: 'success'
       });
-      
+
       setTimeout(() => {
         setNotification({ show: false, message: '', type: '' });
       }, 3000);
@@ -364,16 +383,16 @@ const getDisplayableChambre = (chambre) => {
     setLoading(true);
     try {
       await loadStagiaires();
-      
+
       setIsAddingExtern(false);
       setCurrentStagiaire(null);
-      
+
       setNotification({
         show: true,
         message: currentStagiaire ? 'Stagiaire externe mis à jour avec succès' : 'Stagiaire externe ajouté avec succès',
         type: 'success'
       });
-      
+
       setTimeout(() => {
         setNotification({ show: false, message: '', type: '' });
       }, 3000);
@@ -392,7 +411,7 @@ const getDisplayableChambre = (chambre) => {
   // Fonction pour gérer l'édition
   const handleEdit = (stagiaire) => {
     setCurrentStagiaire(stagiaire);
-    
+
     // Rediriger vers le formulaire approprié selon le type
     if (stagiaire.type === 'externe') {
       setIsAddingExtern(true);
@@ -401,7 +420,7 @@ const getDisplayableChambre = (chambre) => {
       setIsAddingIntern(true);
       setIsAddingExtern(false);
     }
-    
+
     // Désactiver l'affichage du profil si actif
     setViewProfileId(null);
   };
@@ -442,14 +461,14 @@ const getDisplayableChambre = (chambre) => {
     // Ajouter le nouveau stagiaire externe à la liste
     setStagiaires(prevStagiaires => [...prevStagiaires, newStagiaire]);
     setModalOpen(false);
-    
+
 
   };
 
   const handleUpdateStagiaire = (updatedData) => {
     // Vérifier si c'est un stagiaire interne ou externe
     const isIntern = currentStagiaire.type === 'interne';
-    
+
     // Mettre à jour le stagiaire avec les nouvelles données
     const updatedStagiaire = {
       ...currentStagiaire,
@@ -466,7 +485,7 @@ const getDisplayableChambre = (chambre) => {
       dateOfBirth: updatedData.dateOfBirth,
       placeOfBirth: updatedData.placeOfBirth,
       specialization: updatedData.specialization,
-      
+
       // Si c'est un stagiaire interne, mettre à jour les champs spécifiques
       ...(isIntern ? {
         nationality: updatedData.nationality,
@@ -502,49 +521,56 @@ const getDisplayableChambre = (chambre) => {
     };
 
     // Mettre à jour la liste des stagiaires
-    setStagiaires(prevStagiaires => 
-      prevStagiaires.map(stagiaire => 
+    setStagiaires(prevStagiaires =>
+      prevStagiaires.map(stagiaire =>
         stagiaire.id === currentStagiaire.id ? updatedStagiaire : stagiaire
       )
     );
-    
+
     setModalOpen(false);
-    
+
   };
 
   // Gérer la suppression d'un stagiaire
   const handleDeleteStagiaire = async (id) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce stagiaire?")) {
-      setLoading(true);
-      try {
-        await deleteStagiaire(id);
-        // Recharger la liste après suppression
-        loadStagiaires();
-        
-        // Si on visualisait le stagiaire supprimé, revenir à la liste
-        if (viewProfileId === id) {
-          setViewProfileId(null);
-        }
-        
-        setNotification({
-          show: true,
-          message: 'Stagiaire supprimé avec succès',
-          type: 'success'
-        });
-        
-        setTimeout(() => {
-          setNotification({ show: false, message: '', type: '' });
-        }, 3000);
-      } catch (err) {
-        console.error("Erreur lors de la suppression:", err);
-        setNotification({
-          show: true,
-          message: "Erreur lors de la suppression: " + (err.message || "Une erreur s'est produite"),
-          type: 'error'
-        });
-      } finally {
-        setLoading(false);
+    setLoading(true);
+    try {
+      // Make the API request to delete the stagiaire
+      await deleteStagiaire(id);
+
+      // On success, reload the list
+      await loadStagiaires();
+
+      // If we're viewing the deleted stagiaire, go back to list
+      if (viewProfileId === id) {
+        setViewProfileId(null);
       }
+
+      // Show success notification
+      setNotification({
+        show: true,
+        message: 'Stagiaire supprimé avec succès',
+        type: 'success'
+      });
+
+      setTimeout(() => {
+        setNotification({ show: false, message: '', type: '' });
+      }, 3000);
+
+      return true; // Indicate success
+    } catch (err) {
+      console.error("Erreur lors de la suppression:", err);
+
+      // Show error notification
+      setNotification({
+        show: true,
+        message: "Erreur lors de la suppression: " + (err.message || "Une erreur s'est produite"),
+        type: 'error'
+      });
+
+      return false; // Indicate failure
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -561,6 +587,7 @@ const getDisplayableChambre = (chambre) => {
       room: 'all',
       gender: 'all',
       session: 'all',
+      year: 'all',  // Add year filter
       startDate: '',
       endDate: '',
       specificRoom: ''
@@ -569,6 +596,52 @@ const getDisplayableChambre = (chambre) => {
     loadStagiaires(resetFilters);
   };
 
+  // Find your search function in Stagiaires.jsx, it likely looks something like this:
+  const filterStagiaires = (stagiaires, searchTerm) => {
+    if (!searchTerm) return stagiaires;
+
+    const term = searchTerm.toLowerCase();
+
+    return stagiaires.filter(stagiaire => {
+      // Add null checks to every property you're searching through
+      return (
+        // Name fields
+        (stagiaire.firstName?.toLowerCase() || '').includes(term) ||
+        (stagiaire.lastName?.toLowerCase() || '').includes(term) ||
+        ((stagiaire.firstName + ' ' + stagiaire.lastName)?.toLowerCase() || '').includes(term) ||
+
+        // ID and email
+        (stagiaire.identifier?.toLowerCase() || '').includes(term) ||
+        (stagiaire.email?.toLowerCase() || '').includes(term) ||
+
+        // Other fields like room, enterprise, etc.
+        (stagiaire.entreprise?.toLowerCase() || '').includes(term) ||
+        (stagiaire.specificRoom?.toLowerCase() || '').includes(term) ||
+        (stagiaire.chambre?.toString().toLowerCase() || '').includes(term) ||
+
+        // Type of stagiaire
+        (stagiaire.type?.toLowerCase() || '').includes(term)
+      );
+    });
+  };
+
+  // Update your searchTerm state handler
+  const handleSearchChange = (value) => {
+    // Update local search term immediately for UI feedback
+    setSearchTerm(value);
+    
+    // Call the debounced search function which will make the API request
+    // after the specified delay (1 second)
+    debouncedSearch(value);
+  };
+
+  useEffect(() => {
+  return () => {
+    if (window.searchTimeout) {
+      clearTimeout(window.searchTimeout);
+    }
+  };
+}, []);
   return (
     <div className="space-y-6">
       {loading && (
@@ -591,7 +664,7 @@ const getDisplayableChambre = (chambre) => {
       )}
 
       {isAddingIntern && !viewProfileId ? (
-        <AddIntern 
+        <AddIntern
           onCancel={handleCancelAdd}
           onSave={handleSaveIntern}
           initialData={currentStagiaire} // Passer les données existantes pour l'édition
@@ -606,19 +679,19 @@ const getDisplayableChambre = (chambre) => {
         />
       ) : viewProfileId ? (
         // Dans la partie qui passe les props à StagiaireProfile
-<StagiaireProfile
-  stagiaire={getStagiaireById(viewProfileId)}
-  chambre={getDisplayableChambre(getStagiaireById(viewProfileId)?.chambre)}
-  animation={animation}
-  onBack={() => setViewProfileId(null)}
-  onEdit={() => handleEdit(getStagiaireById(viewProfileId))}
-  onDelete={() => handleOpenDeleteModal(viewProfileId)}
-/>
+        <StagiaireProfile
+          stagiaire={getStagiaireById(viewProfileId)}
+          chambre={getDisplayableChambre(getStagiaireById(viewProfileId)?.chambre)}
+          animation={animation}
+          onBack={() => setViewProfileId(null)}
+          onEdit={() => handleEdit(getStagiaireById(viewProfileId))}
+          onDelete={() => handleOpenDeleteModal(viewProfileId)}
+        />
       ) : (
         <>
-          <StagiaireHeader 
+          <StagiaireHeader
             searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
+            onSearchChange={handleSearchChange} // Use the new handler instead of setSearchTerm directly
             onToggleStats={() => setIsStatsOpen(!isStatsOpen)}
             isStatsOpen={isStatsOpen}
             viewMode={viewMode}
@@ -634,7 +707,7 @@ const getDisplayableChambre = (chambre) => {
             </div>
           )}
 
-          <StagiairesList 
+          <StagiairesList
             stagiaires={currentStagiaires}
             currentPage={currentPage}
             totalPages={totalPages}
@@ -642,7 +715,7 @@ const getDisplayableChambre = (chambre) => {
             sortOrder={sortOrder}
             onView={handleViewProfile}
             onEdit={handleEdit} // <-- CORRECTION ICI
-            onDelete={handleOpenDeleteModal}
+            onDelete={handleDeleteStagiaire} // Pass the function that makes the API call
             onSort={toggleSort}
             onChangePage={setCurrentPage}
             selectedFilter={selectedFilter}
@@ -668,11 +741,10 @@ const getDisplayableChambre = (chambre) => {
 
       {/* Notifications */}
       {notification.show && (
-        <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 transition-all duration-500 ease-in-out ${
-          notification.type === 'success' ? 'bg-green-100 text-green-800 border-l-4 border-green-500' : 
-          notification.type === 'error' ? 'bg-red-100 text-red-800 border-l-4 border-red-500' : 
-          'bg-blue-100 text-blue-800 border-l-4 border-blue-500'
-        }`}>
+        <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 transition-all duration-500 ease-in-out ${notification.type === 'success' ? 'bg-green-100 text-green-800 border-l-4 border-green-500' :
+            notification.type === 'error' ? 'bg-red-100 text-red-800 border-l-4 border-red-500' :
+              'bg-blue-100 text-blue-800 border-l-4 border-blue-500'
+          }`}>
           <div className="flex items-center">
             {notification.type === 'success' && (
               <svg className="h-6 w-6 text-green-600 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">

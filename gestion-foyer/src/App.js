@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Login from './pages/Login';
-// import Dashboard from './pages/Dashboard';
+import Dashboard from './pages/Dashboard';
 import Chambres from './pages/Chambres';
 import Stagiaires from './pages/Stagiaires';
 // import Cuisine from './pages/Cuisine';
 import Layout from './components/layout/Layout';
-// import Personnel from './pages/Personnel';
+import Personnel from './pages/Personnel';
 import ProtectedRoute from './components/ProtectedRoute';
 import Documentation from './pages/Documentation';
 
@@ -96,21 +96,14 @@ function App() {
           } 
         />
         
-        {/* <Route path="/" element={
+        { <Route path="/" element={
           <ProtectedRoute isAuthenticated={isAuthenticated}>
             <Layout user={user} onLogout={handleLogout}>
               <Dashboard />
             </Layout>
           </ProtectedRoute>
-        } /> */}
+        } /> }
 
-        <Route path="/" element={
-          <ProtectedRoute isAuthenticated={isAuthenticated}>
-            <Layout user={user} onLogout={handleLogout}>
-              <Stagiaires />
-            </Layout>
-          </ProtectedRoute>
-        } />
         
         <Route path="/chambres" element={
           <ProtectedRoute isAuthenticated={isAuthenticated}>
@@ -135,13 +128,13 @@ function App() {
             </Layout>
           </ProtectedRoute>
         } /> */}
-        {/* <Route path="/personnel" element={
+        { <Route path="/personnel" element={
           <ProtectedRoute isAuthenticated={isAuthenticated}>
             <Layout user={user} onLogout={handleLogout}>
               <Personnel />
             </Layout>
           </ProtectedRoute>
-        } /> */}
+        } /> }
         <Route path="/documentation" element={<Documentation />} />
         <Route path="/documentation/:sectionId" element={<Documentation />} />
         <Route path="/documentation/:sectionId/:subsectionId" element={<Documentation />} />

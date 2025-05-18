@@ -17,6 +17,9 @@ import {
   BriefcaseIcon,
   CalendarIcon
 } from '@heroicons/react/outline';
+import { Dialog, Transition } from '@headlessui/react';
+import { Fragment } from 'react';
+import axios from 'axios';
 
 const StagiairesList = ({ 
   stagiaires, 
@@ -43,9 +46,15 @@ const StagiairesList = ({
   const [localFilters, setLocalFilters] = useState(filters);
   const [showDateFilters, setShowDateFilters] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [stagiaireToDelete, setStagiaireToDelete] = useState(null);
 
   useEffect(() => {
-    setLocalFilters(filters);
+    // Make sure the localFilters includes the year field
+    setLocalFilters({
+      ...filters,
+      year: filters.year || 'all'
+    });
   }, [filters]);
 
   const availableRooms = ['101', '102', '103', '104', '105']; // Example room numbers
@@ -150,10 +159,12 @@ const StagiairesList = ({
                   {stagiaire.avatar ? (
                     <img src={stagiaire.avatar} alt="" className="h-full w-full rounded-full object-cover" />
                   ) : (
-                    <span className="text-2xl font-medium text-cyan-600">{stagiaire.nom.charAt(0)}</span>
+                    <span className="text-2xl font-medium text-cyan-600">
+                      {stagiaire.nom ? stagiaire.nom.charAt(0) : (stagiaire.firstName ? stagiaire.firstName.charAt(0) : '?')}
+                    </span>
                   )}
                 </div>
-                <h3 className="text-base font-medium text-gray-800">{stagiaire.nom}</h3>
+                <h3 className="text-base font-medium text-gray-800">{stagiaire.firstName} {stagiaire.lastName}</h3>
                 <p className="text-xs text-gray-500 mt-0.5">{stagiaire.email}</p>
                 <div className="mt-1">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
@@ -229,7 +240,7 @@ const StagiairesList = ({
                   <PencilAltIcon className="h-4 w-4" />
                 </button>
                 <button 
-                  onClick={() => onDelete(stagiaire.id)} 
+                  onClick={() => handleDeleteClick(stagiaire)} 
                   className={getActionButtonClass('red')}
                   title="Supprimer"
                 >
@@ -310,12 +321,14 @@ const StagiairesList = ({
                       {stagiaire.avatar ? (
                         <img src={stagiaire.avatar} alt="" className="h-9 w-9 rounded-full object-cover" />
                       ) : (
-                        <span className="text-sm font-medium text-cyan-600">{stagiaire.nom.charAt(0)}</span>
+                        <span className="text-sm font-medium text-cyan-600">
+                          {stagiaire.nom ? stagiaire.nom.charAt(0) : (stagiaire.firstName ? stagiaire.firstName.charAt(0) : '?')}
+                        </span>
                       )}
                     </div>
                     <div>
                       <div className="font-medium text-gray-800 group-hover:text-cyan-600 transition-colors">
-                        {stagiaire.nom}
+                        {stagiaire.firstName} {stagiaire.lastName}
                       </div>
                       <div className="text-xs text-gray-500 flex items-center">
                         <span>{stagiaire.email}</span>
@@ -395,7 +408,7 @@ const StagiairesList = ({
                       <PencilAltIcon className="h-4 w-4" />
                     </button>
                     <button 
-                      onClick={() => onDelete(stagiaire.id)} 
+                      onClick={() => handleDeleteClick(stagiaire)} 
                       className={getActionButtonClass('red')}
                       title="Supprimer"
                     >
@@ -409,6 +422,53 @@ const StagiairesList = ({
         </table>
       </div>
     );
+  };
+
+  const handleDeleteClick = (stagiaire) => {
+    setStagiaireToDelete(stagiaire);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (stagiaireToDelete) {
+      try {
+        // Get the ID to delete (handle MongoDB _id vs client-side id)
+        const idToDelete = stagiaireToDelete._id || stagiaireToDelete.id;
+        
+        // Call the parent component's onDelete function
+        // This will trigger the API request in the parent component
+        await onDelete(idToDelete);
+        
+        // Show success notification if needed (can be handled in parent)
+        console.log(`Stagiaire ${idToDelete} supprimé avec succès`);
+      } catch (error) {
+        // Handle errors
+        console.error('Erreur lors de la suppression du stagiaire:', error);
+        // You might want to show an error message to the user here
+      } finally {
+        // Close the modal and reset state regardless of success/failure
+        setDeleteModalOpen(false);
+        setStagiaireToDelete(null);
+      }
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteModalOpen(false);
+    setStagiaireToDelete(null);
+  };
+
+  // Add this method right after the component declaration, with your other helper methods
+  const generateYearOptions = () => {
+    const startYear = 2005;
+    const endYear = 2050;
+    const years = [];
+    
+    for (let year = endYear; year >= startYear; year--) {
+      years.push(year);
+    }
+    
+    return years;
   };
 
   return (
@@ -599,7 +659,7 @@ const StagiairesList = ({
                 <CalendarIcon className="h-3.5 w-3.5 mr-1" />
                 Session:
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 <button
                   className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
                     localFilters.session === 'all' 
@@ -610,36 +670,63 @@ const StagiairesList = ({
                 >
                   Toutes
                 </button>
-                <button
-                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
-                    localFilters.session === 'septembre' 
-                      ? 'bg-amber-100 text-amber-700 font-medium' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  onClick={() => handleFilterChange('session', 'septembre')}
+                
+                {/* Year selector - Make it more prominent */}
+                <select
+                  className="h-7 text-xs border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  value={localFilters.year || 'all'}
+                  onChange={(e) => handleFilterChange('year', e.target.value)}
                 >
-                  Sep 2023
-                </button>
-                <button
-                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
-                    localFilters.session === 'novembre' 
-                      ? 'bg-amber-100 text-amber-700 font-medium' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  onClick={() => handleFilterChange('session', 'novembre')}
-                >
-                  Nov 2023
-                </button>
-                <button
-                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
-                    localFilters.session === 'fevrier' 
-                      ? 'bg-amber-100 text-amber-700 font-medium' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  onClick={() => handleFilterChange('session', 'fevrier')}
-                >
-                  Fév 2024
-                </button>
+                  <option value="all">Année: Toutes</option>
+                  {generateYearOptions().map(year => (
+                    <option key={year} value={year.toString()}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+                
+                {/* Month Session Buttons - with clearer UI */}
+                <div className="flex gap-1.5 mt-1 sm:mt-0">
+                  <button
+                    className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                      localFilters.session === 'septembre' 
+                        ? 'bg-amber-100 text-amber-700 font-medium' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    onClick={() => handleFilterChange('session', 'septembre')}
+                  >
+                    <span className="flex items-center">
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      Sep
+                    </span>
+                  </button>
+                  <button
+                    className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                      localFilters.session === 'novembre' 
+                        ? 'bg-amber-100 text-amber-700 font-medium' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    onClick={() => handleFilterChange('session', 'novembre')}
+                  >
+                    <span className="flex items-center">
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      Nov
+                    </span>
+                  </button>
+                  <button
+                    className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                      localFilters.session === 'fevrier' 
+                        ? 'bg-amber-100 text-amber-700 font-medium' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    onClick={() => handleFilterChange('session', 'fevrier')}
+                  >
+                    <span className="flex items-center">
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      Fév
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -968,6 +1055,68 @@ const StagiairesList = ({
           </button>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen p-4">
+            {/* Backdrop */}
+            <div className="fixed inset-0 bg-black opacity-30" onClick={cancelDelete}></div>
+            
+            {/* Modal */}
+            <div className="relative w-full max-w-md p-6 bg-white rounded-lg shadow-xl z-10">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                  <ExclamationIcon className="h-6 w-6 text-red-600" />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Supprimer le stagiaire
+                  </h3>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                      Êtes-vous sûr de vouloir supprimer ce stagiaire ? Cette action ne peut pas être annulée.
+                    </p>
+                    {stagiaireToDelete && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                        <p className="text-sm font-medium text-gray-700">
+                          {stagiaireToDelete.firstName} {stagiaireToDelete.lastName}
+                          {stagiaireToDelete.nom && <span> ({stagiaireToDelete.nom})</span>}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {stagiaireToDelete.email}
+                        </p>
+                        {stagiaireToDelete.identifier && (
+                          <p className="text-xs bg-blue-50 text-blue-700 py-1 px-2 rounded mt-2 inline-block">
+                            ID: {stagiaireToDelete.identifier}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  onClick={cancelDelete}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+                  onClick={confirmDelete}
+                >
+                  Supprimer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
