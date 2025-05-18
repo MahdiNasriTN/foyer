@@ -15,7 +15,8 @@ import {
   ClockIcon,
   OfficeBuildingIcon,
   BriefcaseIcon,
-  CalendarIcon
+  CalendarIcon,
+  DownloadIcon // Import the download icon
 } from '@heroicons/react/outline';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
@@ -38,7 +39,9 @@ const StagiairesList = ({
   filters,
   onApplyFilters,
   onResetFilters,
-  getDisplayableChambre
+  getDisplayableChambre,
+  onExport, // Add this new prop for handling export
+  onExportSingle // Keep existing prop for single stagiaire export
 }) => {
   const [hoveredRow, setHoveredRow] = useState(null);
   const [hoveredCard, setHoveredCard] = useState(null);
@@ -48,6 +51,7 @@ const StagiairesList = ({
   const [showFilters, setShowFilters] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [stagiaireToDelete, setStagiaireToDelete] = useState(null);
+  const [showExportOptions, setShowExportOptions] = useState(false); // New state for export options
 
   useEffect(() => {
     // Make sure the localFilters includes the year field
@@ -246,6 +250,14 @@ const StagiairesList = ({
                 >
                   <TrashIcon className="h-4 w-4" />
                 </button>
+                {/* New export button */}
+                <button
+                  onClick={() => onExportSingle(stagiaire)}
+                  className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50"
+                  title="Exporter"
+                >
+                  <DownloadIcon className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
@@ -391,28 +403,38 @@ const StagiairesList = ({
                   </div>
                 </td>
                 
-                <td className="py-3 px-6 text-right space-x-1">
-                  <div className="flex items-center justify-end space-x-1">
-                    <button 
-                      onClick={() => onView(stagiaire.id)} 
-                      className={getActionButtonClass('blue')}
-                      title="Voir profil"
+                {/* Actions column - add export icon */}
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => onView(stagiaire.id)}
+                      className="text-blue-600 hover:text-blue-800"
+                      title="Voir le profil"
                     >
                       <UserIcon className="h-4 w-4" />
                     </button>
-                    <button 
-                      onClick={() => onEdit(stagiaire)} 
-                      className={getActionButtonClass('green')}
+                    <button
+                      onClick={() => onEdit(stagiaire)}
+                      className="text-green-600 hover:text-green-800"
                       title="Modifier"
                     >
                       <PencilAltIcon className="h-4 w-4" />
                     </button>
-                    <button 
-                      onClick={() => handleDeleteClick(stagiaire)} 
-                      className={getActionButtonClass('red')}
+                    <button
+                      onClick={() => handleDeleteClick(stagiaire)}
+                      className="text-red-600 hover:text-red-800"
                       title="Supprimer"
                     >
                       <TrashIcon className="h-4 w-4" />
+                    </button>
+                    
+                    {/* New export button */}
+                    <button
+                      onClick={() => onExportSingle(stagiaire)}
+                      className="text-emerald-600 hover:text-emerald-800"
+                      title="Exporter"
+                    >
+                      <DownloadIcon className="h-4 w-4" />
                     </button>
                   </div>
                 </td>
@@ -471,6 +493,18 @@ const StagiairesList = ({
     return years;
   };
 
+  // Replace the existing handleExport method with this one
+  const handleExport = (count) => {
+    setShowExportOptions(false);
+    
+    // Call the parent component's onExport function
+    if (onExport) {
+      onExport(count);
+    } else {
+      console.error("onExport prop is not defined");
+    }
+  };
+
   return (
     <div className="relative overflow-hidden bg-white rounded-xl border border-gray-200">
       {/* En-tête avec titre de section */}
@@ -489,7 +523,60 @@ const StagiairesList = ({
             {sortBy && <span> • Trié par <span className="text-cyan-600 font-medium">{sortBy}</span></span>}
           </div>
           
-          {/* Remplacer le menu déroulant par un simple bouton qui montre/cache les filtres */}
+          {/* Export button - adding this new button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportOptions(!showExportOptions)}
+              className="flex items-center gap-1.5 bg-emerald-50 py-2 px-3.5 rounded-lg text-sm text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all shadow-sm hover:shadow-md"
+            >
+              <DownloadIcon className="h-4 w-4 text-emerald-600" />
+              <span className="hidden sm:inline">Exporter</span>
+            </button>
+            
+            {/* Export dropdown */}
+            {showExportOptions && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                <div className="p-2">
+                  <div className="text-xs font-medium text-gray-500 uppercase px-3 py-2">
+                    Nombre de stagiaires
+                  </div>
+                  <button 
+                    onClick={() => handleExport(10)}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
+                  >
+                    10 stagiaires
+                  </button>
+                  <button 
+                    onClick={() => handleExport(20)}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
+                  >
+                    20 stagiaires
+                  </button>
+                  <button 
+                    onClick={() => handleExport(50)}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
+                  >
+                    50 stagiaires
+                  </button>
+                  <button 
+                    onClick={() => handleExport(200)}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
+                  >
+                    200 stagiaires
+                  </button>
+                  <div className="border-t border-gray-100 my-1"></div>
+                  <button 
+                    onClick={() => handleExport('all')}
+                    className="block px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 rounded-md w-full text-left"
+                  >
+                    Tous les stagiaires
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Filter button */}
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-1.5 bg-white py-2 px-3.5 rounded-lg text-sm text-gray-600 border border-gray-200 hover:bg-gray-50 transition-all shadow-sm hover:shadow-md"

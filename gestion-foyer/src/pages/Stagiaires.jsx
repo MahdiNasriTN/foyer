@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 // Remplacer les imports de mocks par des appels API
-import { fetchStagiaires, deleteStagiaire, createInternStagiaire, createExternStagiaire, updateStagiaire } from '../services/api';
+import { fetchStagiaires, deleteStagiaire, createInternStagiaire, createExternStagiaire, updateStagiaire, exportStagiaires, exportStagiaire } from '../services/api';
 import { mockChambres, mockStagiaires } from '../utils/mockData'; // Garder les chambres mockées pour le moment
+import { saveAs } from 'file-saver';
+import axios from 'axios'; // Make sure this is imported
 
 // Importation des composants
 import StagiairesList from '../components/stagiaires/StagiairesList';
@@ -642,6 +644,86 @@ const Stagiaires = () => {
     }
   };
 }, []);
+
+  // Handle the export of multiple stagiaires
+// Update the handleExport function to use your API service
+const handleExport = async (count) => {
+  setLoading(true);
+  try {
+    // Prepare export parameters
+    const exportParams = {
+      ...filters,
+      limit: count === 'all' ? undefined : count,
+      format: 'xlsx'
+    };
+    
+    // Call the exportStagiaires API function
+    const response = await exportStagiaires(exportParams);
+    
+    // Create a file name with current date
+    const date = new Date().toISOString().split('T')[0];
+    const fileName = `stagiaires_export_${date}.xlsx`;
+    
+    // Save the blob as a file
+    saveAs(new Blob([response.data]), fileName);
+    
+    // Show success notification
+    setNotification({
+      show: true,
+      message: `Export de ${count === 'all' ? 'tous les' : count} stagiaires réussi`,
+      type: 'success'
+    });
+    
+    setTimeout(() => {
+      setNotification({ show: false, message: '', type: '' });
+    }, 3000);
+  } catch (err) {
+    console.error("Erreur lors de l'export:", err);
+    setNotification({
+      show: true,
+      message: "Erreur lors de l'export: " + (err.message || "Une erreur s'est produite"),
+      type: 'error'
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Update the handleExportSingle function to use your API service
+const handleExportSingle = async (stagiaire) => {
+  setLoading(true);
+  try {
+    // Call the exportStagiaire API function
+    const response = await exportStagiaire(stagiaire._id);
+    
+    // Create a file name with stagiaire name and ID
+    const fileName = `stagiaire_${stagiaire.firstName}_${stagiaire.lastName}_${stagiaire._id}.xlsx`;
+    
+    // Save the blob as a file
+    saveAs(new Blob([response.data]), fileName);
+    
+    // Show success notification
+    setNotification({
+      show: true,
+      message: `Export du stagiaire ${stagiaire.firstName} ${stagiaire.lastName} réussi`,
+      type: 'success'
+    });
+    
+    setTimeout(() => {
+      setNotification({ show: false, message: '', type: '' });
+    }, 3000);
+  } catch (err) {
+    console.error("Erreur lors de l'export:", err);
+    setNotification({
+      show: true,
+      message: "Erreur lors de l'export: " + (err.message || "Une erreur s'est produite"),
+      type: 'error'
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
   return (
     <div className="space-y-6">
       {loading && (
@@ -699,6 +781,7 @@ const Stagiaires = () => {
             onAddNew={handleAddIntern}
             onAddExtern={handleAddExtern}
             totalCount={stagiaires.length}
+            onExport={handleExport} // Add this prop
           />
 
           {isStatsOpen && (
@@ -714,8 +797,8 @@ const Stagiaires = () => {
             sortBy={sortBy}
             sortOrder={sortOrder}
             onView={handleViewProfile}
-            onEdit={handleEdit} // <-- CORRECTION ICI
-            onDelete={handleDeleteStagiaire} // Pass the function that makes the API call
+            onEdit={handleEdit}
+            onDelete={handleDeleteStagiaire}
             onSort={toggleSort}
             onChangePage={setCurrentPage}
             selectedFilter={selectedFilter}
@@ -725,6 +808,8 @@ const Stagiaires = () => {
             onApplyFilters={handleApplyFilters}
             onResetFilters={handleResetFilters}
             getDisplayableChambre={getDisplayableChambre}
+            onExportSingle={handleExportSingle}
+            onExport={handleExport} // Add this prop
           />
         </>
       )}

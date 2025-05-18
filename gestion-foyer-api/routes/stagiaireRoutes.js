@@ -107,6 +107,7 @@ router.route('/').get(stagiaireController.getAllStagiaires);
  */
 router.route('/').post(stagiaireController.createStagiaire);
 
+// ALL SPECIFIC ROUTES WITH FIXED PATHS MUST COME BEFORE /:id ROUTES
 // Routes spécifiques pour le type de stagiaire
 router.post('/intern', stagiaireController.createInternStagiaire);
 router.post('/extern', stagiaireController.createExternStagiaire);
@@ -114,14 +115,20 @@ router.post('/extern', stagiaireController.createExternStagiaire);
 // Ajouter cette route
 router.get('/available', stagiaireController.getAvailableStagiaires);
 
-// CRUD standard par ID
+// Route de recherche - MUST COME BEFORE /:id routes!
+router.get('/search/:query', stagiaireController.searchStagiaires);
+
+// EXPORT ROUTES - MUST COME BEFORE /:id routes!
+router.get('/export', stagiaireController.exportStagiaires);
+
+// ONLY AFTER all other routes, define the /:id routes
 router
   .route('/:id')
   .get(stagiaireController.getStagiaire)
   .put(stagiaireController.updateStagiaire)
   .delete(stagiaireController.deleteStagiaire);
 
-// Route de recherche
-router.get('/search/:query', stagiaireController.searchStagiaires);
+// Route with :id that has additional path - comes after basic /:id routes
+router.get('/:id/export', stagiaireController.exportStagiaire);
 
 module.exports = router;
