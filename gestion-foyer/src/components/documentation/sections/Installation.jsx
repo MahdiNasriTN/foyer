@@ -38,7 +38,7 @@ const Installation = ({ colorMode }) => {
         title="Terminal"
         colorMode={colorMode}
       >{`# Cloner le dépôt
-git clone https://github.com/MahdiNasriTN/foyer
+git clone https://github.com/sawsen/foyer
 
 # Naviguer vers le répertoire du projet
 cd ges_foyer

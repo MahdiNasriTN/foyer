@@ -1,4 +1,3 @@
-// filepath: c:\Users\MahdiNasri\Desktop\ges_foyer\ges_foyer\src\components\personnel\PersonnelHeader.jsx
 import React from 'react';
 import { 
   SearchIcon, 
