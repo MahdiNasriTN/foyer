@@ -346,3 +346,84 @@ export const assignOccupantsToRoom = async (roomId, occupantIds) => {
     throw error.response?.data || error;
   }
 };
+
+// Add these export functions to your API service
+
+// Export multiple stagiaires with optional filtering and limit
+// Export multiple stagiaires with optional filtering and limit
+export const exportStagiaires = async (params = {}) => {
+  try {
+    console.log('Export parameters:', params);
+    // Build query parameters
+    let queryParams = new URLSearchParams();
+    
+    // Add all filter parameters
+    if (params.status && params.status !== 'all') queryParams.append('status', params.status);
+    if (params.room && params.room !== 'all') queryParams.append('room', params.room);
+    if (params.gender && params.gender !== 'all') queryParams.append('gender', params.gender);
+    if (params.session && params.session !== 'all') queryParams.append('session', params.session);
+    if (params.year && params.year !== 'all') queryParams.append('year', params.year);
+    if (params.startDate) queryParams.append('startDate', params.startDate);
+    if (params.endDate) queryParams.append('endDate', params.endDate);
+    if (params.specificRoom) queryParams.append('specificRoom', params.specificRoom);
+    if (params.search) queryParams.append('search', params.search);
+    
+    // Add export specific parameters
+    if (params.limit && params.limit !== 'all') queryParams.append('limit', params.limit);
+    if (params.format) queryParams.append('format', params.format);
+    
+    // Create URL with query parameters
+    const queryString = queryParams.toString();
+    const url = `/api/v1/stagiaires/export${queryString ? `?${queryString}` : ''}`;
+    
+    console.log('Export URL:', API.defaults.baseURL + url);
+    
+    // Make the request with responseType blob to handle binary data
+    const response = await API.get(url, { responseType: 'blob' });
+    return response;
+  } catch (error) {
+    console.error('Error exporting stagiaires:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// Export a single stagiaire by ID
+export const exportStagiaire = async (id, format = 'xlsx') => {
+  console.log('Exporting stagiaire with ID:', id);
+  try {
+    const url = `/api/v1/stagiaires/${id}/export?format=${format}`;
+    
+    console.log('Single export URL:', API.defaults.baseURL + url);
+    
+    // Make the request with responseType blob to handle binary data
+    const response = await API.get(url, { responseType: 'blob' });
+    return response;
+  } catch (error) {
+    console.error(`Error exporting stagiaire ${id}:`, error);
+    throw error.response?.data || error;
+  }
+};
+
+// Add these functions to your existing API service file
+
+// Update personnel schedule
+export const updatePersonnelSchedule = async (personnelId, scheduleData) => {
+  try {
+    const response = await API.put(`/api/v1/personnel/${personnelId}/schedule`, { schedule: scheduleData });
+    return response.data;
+  } catch (error) {
+    console.error('Error updating personnel schedule:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// Get personnel schedule
+export const getPersonnelSchedule = async (personnelId) => {
+  try {
+    const response = await API.get(`/api/v1/personnel/${personnelId}/schedule`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching personnel schedule:', error);
+    throw error.response?.data || error;
+  }
+};

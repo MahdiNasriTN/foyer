@@ -5,6 +5,7 @@ import PersonnelProfile from '../components/personnel/PersonnelProfile';
 import PersonnelModal from '../components/personnel/PersonnelModal';
 import PersonnelStats from '../components/personnel/PersonnelStats';
 import PersonnelFilters from '../components/personnel/PersonnelFilters';
+import PersonnelSchedule from '../components/personnel/PersonnelSchedule';
 
 // Import des services API
 import { 
@@ -13,11 +14,12 @@ import {
   createPersonnel, 
   updatePersonnel, 
   deletePersonnel,
-  getPersonnelStats
+  getPersonnelStats,
+  updatePersonnelSchedule
 } from '../services/personnelService';
 
 // Import des icônes
-import { XIcon, ExclamationIcon, CheckIcon } from '@heroicons/react/outline';
+import { XIcon, ExclamationIcon, CheckIcon, CalendarIcon } from '@heroicons/react/outline';
 
 const Personnel = () => {
   const [personnel, setPersonnel] = useState([]);
@@ -57,6 +59,8 @@ const Personnel = () => {
     activeRate: 0,
     departments: {}
   });
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [selectedEmployeeForSchedule, setSelectedEmployeeForSchedule] = useState(null);
 
   // Chargement du personnel
   const loadPersonnel = async () => {
@@ -295,6 +299,49 @@ const Personnel = () => {
     }
   };
 
+  // Ouvrir le planning d'un employé
+  const handleOpenSchedule = (employee) => {
+    setSelectedEmployeeForSchedule(employee);
+    setShowSchedule(true);
+  };
+
+  // Sauvegarder le planning d'un employé
+  const handleSaveSchedule = async (employeeId, scheduleData) => {
+    try {
+      setLoading(true);
+      
+      // Call the API to save the schedule
+      await updatePersonnelSchedule(employeeId, scheduleData);
+      
+      // Update local state
+      const updatedEmployees = personnel.map(emp => 
+        emp.id === employeeId ? { ...emp, schedule: scheduleData } : emp
+      );
+      
+      setPersonnel(updatedEmployees);
+      setShowSchedule(false);
+      
+      setNotification({
+        show: true,
+        message: 'Planning enregistré avec succès',
+        type: 'success'
+      });
+      
+      setTimeout(() => setNotification({ show: false, message: '', type: '' }), 3000);
+    } catch (error) {
+      console.error('Error saving schedule:', error);
+      setNotification({
+        show: true,
+        message: 'Erreur lors de l\'enregistrement du planning',
+        type: 'error'
+      });
+      
+      setTimeout(() => setNotification({ show: false, message: '', type: '' }), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Cacher la notification après 3 secondes
   useEffect(() => {
     if (notification.show) {
@@ -408,6 +455,19 @@ const Personnel = () => {
               <ExclamationIcon className="h-5 w-5 mr-2 text-red-500" />
             )}
             <p className="font-medium">{notification.message}</p>
+          </div>
+        </div>
+      )}
+
+      {showSchedule && selectedEmployeeForSchedule && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 w-full max-w-7xl">
+            <PersonnelSchedule
+              employeeId={selectedEmployeeForSchedule.id}
+              initialSchedule={selectedEmployeeForSchedule.schedule || {}}
+              onSave={handleSaveSchedule}
+              onClose={() => setShowSchedule(false)}
+            />
           </div>
         </div>
       )}

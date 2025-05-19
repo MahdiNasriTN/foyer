@@ -268,4 +268,140 @@ router.route('/:id')
   .put(personnelController.updatePersonnel)
   .delete(personnelController.deletePersonnel);
 
+/**
+ * @swagger
+ * /api/personnel/{id}/schedule:
+ *   get:
+ *     tags:
+ *       - Personnel
+ *     summary: Récupérer le planning d'un membre du personnel
+ *     description: Récupère le planning d'un membre du personnel spécifique
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du membre du personnel
+ *     responses:
+ *       200:
+ *         description: Planning récupéré avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     schedule:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           date:
+ *                             type: string
+ *                             format: date
+ *                             example: "2023-10-01"
+ *                           startTime:
+ *                             type: string
+ *                             format: time
+ *                             example: "08:00"
+ *                           endTime:
+ *                             type: string
+ *                             format: time
+ *                             example: "17:00"
+ *       404:
+ *         description: Membre du personnel non trouvé
+ *       401:
+ *         description: Non authentifié
+ *       500:
+ *         description: Erreur serveur
+ */
+/**
+ * @swagger
+ * /api/personnel/{id}/schedule:
+ *   put:
+ *     tags:
+ *       - Personnel
+ *     summary: Mettre à jour le planning d'un membre du personnel
+ *     description: Met à jour le planning d'un membre du personnel spécifique
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du membre du personnel
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               schedule:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     date:
+ *                       type: string
+ *                       format: date
+ *                     startTime:
+ *                       type: string
+ *                       format: time
+ *                     endTime:
+ *                       type: string
+ *                       format: time
+ *     responses:
+ *       200:
+ *         description: Planning mis à jour avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     schedule:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           date:
+ *                             type: string
+ *                             format: date
+ *                             example: "2023-10-01"
+ *                           startTime:
+ *                             type: string
+ *                             format: time
+ *                             example: "08:00"
+ *                           endTime:
+ *                             type: string
+ *                             format: time
+ *                             example: "17:00"
+ *       400:
+ *         description: Erreur de validation
+ *       404:
+ *         description: Membre du personnel non trouvé
+ *       401:
+ *         description: Non authentifié
+ *       500:
+ *         description: Erreur serveur
+ */
+router.get('/:id/schedule', personnelController.getPersonnelSchedule);
+router.put('/:id/schedule', personnelController.updatePersonnelSchedule);
+
 module.exports = router;

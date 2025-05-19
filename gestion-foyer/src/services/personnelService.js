@@ -88,3 +88,27 @@ export const getPersonnelStats = async () => {
     throw error.response?.data || error;
   }
 };
+
+// Mettre à jour le planning d'un membre du personnel
+export const updatePersonnelSchedule = async (personnelId, scheduleData) => {
+  try {
+    const response = await fetch(`/api/personnel/${personnelId}/schedule`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ schedule: scheduleData }),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Échec de la mise à jour du planning');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du planning du personnel :', error);
+    throw error;
+  }
+};

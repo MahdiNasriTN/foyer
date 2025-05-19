@@ -128,6 +128,10 @@ const personnelSchema = new mongoose.Schema({
   },
   avatar: {
     type: String
+  },
+  schedule: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   }
 }, {
   timestamps: true,

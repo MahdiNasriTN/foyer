@@ -10,9 +10,8 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
     id: '',
     numero: '',
     capacite: 1,
-    nombreLits: 1, // Ajout du champ nombreLits
+    nombreLits: 1,
     etage: 1,
-    type: 'standard',
     equipements: [],
     occupants: [],
     statut: 'libre'
@@ -24,9 +23,8 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
         id: chambre.id || '',
         numero: chambre.numero || '',
         capacite: chambre.capacite || 1,
-        nombreLits: chambre.nombreLits || chambre.capacite || 1, // Initialiser avec nombreLits ou capacité
+        nombreLits: chambre.nombreLits || chambre.capacite || 1,
         etage: chambre.etage || 1,
-        type: chambre.type || 'standard',
         equipements: chambre.equipements || [],
         occupants: chambre.occupants || [],
         statut: chambre.statut || 'libre'
@@ -65,7 +63,6 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
     });
   };
 
-  // Fonction pour modifier le nombre de lits
   const handleNombreLitsChange = (delta) => {
     setFormData(prev => ({
       ...prev,
@@ -73,15 +70,13 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
     }));
   };
 
-  // Modifier la fonction handleSubmit pour adapter les données au format attendu par l'API
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // Adapter les noms de champs si nécessaire pour qu'ils correspondent au modèle backend
     const submitData = {
       ...formData,
-      equipements: formData.equipements, // Assurez-vous que ce champ est nommé 'amenities' côté backend
-      statut: formData.statut === 'occupée' ? 'occupee' : 'disponible', // Adapter le format si nécessaire
+      equipements: formData.equipements,
+      statut: formData.statut === 'occupée' ? 'occupee' : 'disponible',
     };
     
     onSave(submitData);
@@ -157,24 +152,6 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
             
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label htmlFor="type" className="block text-sm font-medium text-gray-700">
-                  Type
-                </label>
-                <select
-                  id="type"
-                  name="type"
-                  value={formData.type}
-                  onChange={handleChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                >
-                  <option value="standard">Standard</option>
-                  <option value="premium">Premium</option>
-                  <option value="accessible">Accessible</option>
-                  <option value="familiale">Familiale</option>
-                </select>
-              </div>
-              
-              <div>
                 <label htmlFor="capacite" className="block text-sm font-medium text-gray-700">
                   Capacité (occupants)
                 </label>
@@ -207,7 +184,6 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
                 </div>
               </div>
               
-              {/* Nouveau champ pour le nombre de lits */}
               <div>
                 <label htmlFor="nombreLits" className="block text-sm font-medium text-gray-700">
                   Nombre de lits

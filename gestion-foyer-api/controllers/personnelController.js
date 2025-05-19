@@ -242,3 +242,61 @@ exports.getPersonnelStats = async (req, res) => {
     });
   }
 };
+
+// Obtenir le planning d'un membre du personnel
+exports.getPersonnelSchedule = async (req, res) => {
+  try {
+    const personnel = await Personnel.findById(req.params.id);
+    
+    if (!personnel) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Personnel not found'
+      });
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        schedule: personnel.schedule || {}
+      }
+    });
+  } catch (error) {
+    console.error('Error getting personnel schedule:', error);
+    res.status(400).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+// Mettre à jour le planning d'un membre du personnel
+exports.updatePersonnelSchedule = async (req, res) => {
+  try {
+    const personnel = await Personnel.findById(req.params.id);
+    
+    if (!personnel) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Personnel not found'
+      });
+    }
+    
+    // Mettre à jour le planning
+    personnel.schedule = req.body.schedule;
+    await personnel.save();
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        schedule: personnel.schedule
+      }
+    });
+  } catch (error) {
+    console.error('Error updating personnel schedule:', error);
+    res.status(400).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
