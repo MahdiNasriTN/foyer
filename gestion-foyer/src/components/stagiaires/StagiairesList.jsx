@@ -196,7 +196,7 @@ const StagiairesList = ({
               <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                 <div className="text-sm text-gray-700 flex items-center">
                   <BriefcaseIcon className="h-4 w-4 mr-1.5 text-gray-400" />
-                  <span>Entreprise</span>
+                  <span>Centre de formation</span>
                 </div>
                 <span className="font-medium text-gray-700 text-sm">{stagiaire.entreprise}</span>
               </div>
@@ -289,7 +289,7 @@ const StagiairesList = ({
               >
                 <div className="flex items-center">
                   <BriefcaseIcon className="h-4 w-4 mr-1.5 text-gray-400" />
-                  <span>Entreprise</span>
+                  <span>Centre de formation</span>
                   <SortIndicator field="entreprise" />
                 </div>
               </th>

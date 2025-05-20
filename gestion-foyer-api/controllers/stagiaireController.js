@@ -386,6 +386,23 @@ exports.getAllStagiaires = async (req, res) => {
 // Get a single stagiaire
 exports.getStagiaire = async (req, res) => {
   try {
+    // Special case for 'available' endpoint
+    if (req.params.id === 'available') {
+      // Handle it as the getAvailableStagiaires function would
+      const availableStagiaires = await Stagiaire.find({
+        $or: [
+          { chambreId: { $exists: false } },
+          { chambreId: null }
+        ]
+      }).sort({ firstName: 1, lastName: 1 });
+
+      return res.status(200).json({
+        status: 'success',
+        data: availableStagiaires
+      });
+    }
+
+    // Regular case - fetch a specific stagiaire
     console.log('Fetching stagiaire with ID:', req.params.id);
     const stagiaire = await Stagiaire.findById(req.params.id)
       .populate('chambre', 'numero capacite etage');
@@ -642,39 +659,23 @@ exports.searchStagiaires = async (req, res) => {
 // Ajouter cette méthode à votre contrôleur de stagiaires
 exports.getAvailableStagiaires = async (req, res) => {
   try {
-    let query = {};
-    
-    // Si on recherche des stagiaires sans chambre
-    if (req.query.chambreStatus === 'disponible') {
-      query.chambre = { $exists: false };
-    }
-    
-    // Si on recherche par nom
-    if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, 'i');
-      query = {
-        ...query,
-        $or: [
-          { firstName: searchRegex },
-          { lastName: searchRegex },
-          { email: searchRegex }
-        ]
-      };
-    }
-    
-    // Trouver les stagiaires correspondants à la requête
-    const stagiaires = await Stagiaire.find(query)
-      .select('_id firstName lastName email phoneNumber profilePhoto chambre');
-    
+    // Find stagiaires where chambreId is not set or null
+    const availableStagiaires = await Stagiaire.find({
+      $or: [
+        { chambreId: { $exists: false } },
+        { chambreId: null }
+      ]
+    }).sort({ firstName: 1, lastName: 1 });
+
     res.status(200).json({
       status: 'success',
-      results: stagiaires.length,
-      data: stagiaires
+      data: availableStagiaires
     });
   } catch (error) {
+    console.error('Error fetching available stagiaires:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: 'Impossible de récupérer les stagiaires disponibles'
     });
   }
 };

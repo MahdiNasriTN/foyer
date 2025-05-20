@@ -163,7 +163,7 @@ const StagiaireProfile = ({ stagiaire, chambre, animation, onBack, onEdit, onDel
                     <BriefcaseIcon className="h-5 w-5 text-cyan-600" />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Entreprise</p>
+                    <p className="text-sm font-medium text-gray-500">Centre de formation</p>
                     <p className="text-gray-800">{stagiaire.entreprise}</p>
                   </div>
                 </div>

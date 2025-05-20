@@ -198,53 +198,60 @@ const PersonnelSchedule = ({ employeeId, initialSchedule = {}, onSave, onClose }
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {TIME_SLOTS.map((timeSlot, index) => (
-                <tr key={timeSlot.start} className={`hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">
-                    {timeSlot.label}
-                  </td>
-                  {DAYS.map(day => {
-                    const shift = getShiftForTimeSlot(day, timeSlot.start);
-                    
-                    return (
-                      <td 
-                        key={`${day}-${timeSlot.start}`} 
-                        className={`px-1 py-1 text-sm text-center border border-gray-100 relative cursor-pointer h-12`}
-                        onClick={() => !shift && handleCellClick(day, timeSlot.start)}
-                      >
-                        {shift ? (
-                          <div className="flex flex-col h-full relative group">
-                            <div className="absolute inset-0 bg-gradient-to-r from-blue-100 to-indigo-50 rounded shadow-sm"></div>
-                            <div className="relative p-1.5 flex flex-col h-full z-10">
-                              <div className="text-xs font-medium text-blue-700 mb-0.5 truncate">
-                                {timeSlot.label}
+              {TIME_SLOTS.map((timeSlot, index) => {
+                // Format the hour display for better readability
+                const startHour = timeSlot.start < 10 ? `0${timeSlot.start}` : timeSlot.start;
+                const endHour = timeSlot.end < 10 ? `0${timeSlot.end}` : timeSlot.end;
+                const formattedLabel = `${startHour}:00 - ${endHour}:00`;
+                
+                return (
+                  <tr key={timeSlot.start} className={`hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">
+                      {formattedLabel}
+                    </td>
+                    {DAYS.map(day => {
+                      const shift = getShiftForTimeSlot(day, timeSlot.start);
+                      
+                      return (
+                        <td 
+                          key={`${day}-${timeSlot.start}`} 
+                          className={`px-1 py-1 text-sm text-center border border-gray-100 relative cursor-pointer h-12`}
+                          onClick={() => !shift && handleCellClick(day, timeSlot.start)}
+                        >
+                          {shift ? (
+                            <div className="flex flex-col h-full relative group">
+                              <div className="absolute inset-0 bg-gradient-to-r from-blue-100 to-indigo-50 rounded shadow-sm"></div>
+                              <div className="relative p-1.5 flex flex-col h-full z-10">
+                                <div className="text-xs font-medium text-blue-700 mb-0.5 truncate">
+                                  {timeSlot.label}
+                                </div>
+                                <div className="text-xs text-gray-600 flex-1 overflow-hidden text-left leading-tight">
+                                  {shift.notes || "Tâche assignée"}
+                                </div>
+                                <button
+                                  className="absolute top-0.5 right-0.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteShift(day, shift);
+                                  }}
+                                >
+                                  <XIcon className="h-3.5 w-3.5" />
+                                </button>
                               </div>
-                              <div className="text-xs text-gray-600 flex-1 overflow-hidden text-left leading-tight">
-                                {shift.notes || "Tâche assignée"}
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center h-full group">
+                              <div className="h-7 w-7 rounded-full bg-gray-50 flex items-center justify-center transform group-hover:scale-110 transition-transform duration-200 group-hover:bg-gray-100 group-hover:shadow-sm">
+                                <PlusIcon className="h-4 w-4 text-gray-400 group-hover:text-blue-500" />
                               </div>
-                              <button
-                                className="absolute top-0.5 right-0.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteShift(day, shift);
-                                }}
-                              >
-                                <XIcon className="h-3.5 w-3.5" />
-                              </button>
                             </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center h-full group">
-                            <div className="h-7 w-7 rounded-full bg-gray-50 flex items-center justify-center transform group-hover:scale-110 transition-transform duration-200 group-hover:bg-gray-100 group-hover:shadow-sm">
-                              <PlusIcon className="h-4 w-4 text-gray-400 group-hover:text-blue-500" />
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

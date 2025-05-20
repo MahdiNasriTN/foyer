@@ -227,11 +227,11 @@ export const getStagiaireById = async (id) => {
 // Ajouter cette fonction pour récupérer les stagiaires disponibles pour l'assignation
 export const fetchAvailableStagiaires = async () => {
   try {
-    const response = await API.get('/api/v1/stagiaires?chambreStatus=disponible');
-    return response.data; // Ne pas transformer les données ici
+    const response = await API.get('/api/v1/stagiaires/available');
+    return response.data;
   } catch (error) {
     console.error('Error fetching available stagiaires:', error);
-    throw error.response?.data || error;
+    throw error;
   }
 };
 

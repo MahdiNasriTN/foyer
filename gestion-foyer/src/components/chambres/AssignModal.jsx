@@ -27,7 +27,7 @@ const AssignModal = ({ isOpen, onClose, chambre, onAssign }) => {
           // Présélectionner les occupants actuels
           setSelectedOccupantIds(occupants.map(o => o._id));
           
-          // Charger tous les stagiaires disponibles
+          // Charger uniquement les stagiaires sans chambre assignée
           const stagiaireResponse = await fetchAvailableStagiaires();
           
           // Vérifier la structure de la réponse et ajuster en conséquence
@@ -43,15 +43,18 @@ const AssignModal = ({ isOpen, onClose, chambre, onAssign }) => {
             stagiaires = stagiaireResponse || [];
           }
           
-          // Inclure les occupants actuels dans la liste des disponibles
-          const availableForSelection = [...stagiaires];
+          // Filtrer pour n'avoir que les stagiaires sans chambre
+          // (Nous supposons que l'API fetchAvailableStagiaires renvoie déjà uniquement 
+          // les stagiaires sans chambre assignée - sinon, ajustez ce code)
           
-          // Ajouter les occupants actuels s'ils ne sont pas déjà dans la liste
-          occupants.forEach(occupant => {
-            if (!availableForSelection.some(s => s._id === occupant._id)) {
-              availableForSelection.push(occupant);
-            }
-          });
+          // Créer la liste finale: occupants actuels + stagiaires sans chambre
+          const availableForSelection = [
+            ...occupants, // Inclure les occupants actuels de cette chambre
+            ...stagiaires.filter(stagiaire => 
+              // Exclure ceux qui sont déjà occupants de cette chambre pour éviter les doublons
+              !occupants.some(occupant => occupant._id === stagiaire._id)
+            )
+          ];
           
           setAvailableStagiaires(availableForSelection);
         } catch (err) {

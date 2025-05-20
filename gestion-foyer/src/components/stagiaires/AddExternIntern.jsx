@@ -421,7 +421,7 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label htmlFor="assignedCenter" className={labelClass}>
-                Centre assigné
+                Centre de formation
               </label>
               <input
                 type="text"

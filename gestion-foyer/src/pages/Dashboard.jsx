@@ -20,6 +20,8 @@ import {
   SparklesIcon
 } from '@heroicons/react/outline';
 import { useNavigate } from 'react-router-dom';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 // API base URL from environment
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
@@ -397,6 +399,142 @@ const Dashboard = () => {
     fetchDashboardData();
   };
 
+  // Fonction pour générer le rapport PDF
+  const generatePDFReport = () => {
+    try {
+      // Create a new PDF document
+      const doc = new jsPDF();
+      const currentDate = new Date().toLocaleDateString('fr-FR');
+      
+      // Add title and metadata
+      doc.setFontSize(20);
+      doc.setTextColor(44, 62, 80);
+      doc.text('Rapport du Tableau de Bord', 105, 15, { align: 'center' });
+      
+      // Add date and time
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Généré le: ${currentDate}`, 200, 15, { align: 'right' });
+      
+      // Add company logo/info
+      doc.setFontSize(12);
+      doc.setTextColor(44, 62, 80);
+      doc.text('Gestion de Foyer', 14, 15);
+
+      // Add divider
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.5);
+      doc.line(14, 22, 200, 22);
+      
+      // Summary section
+      doc.setFontSize(14);
+      doc.setTextColor(44, 62, 80);
+      doc.text('Résumé des statistiques', 14, 35);
+      
+      // Add basic statistics
+      const statsData = [
+        ['Chambres', `${dashboardData.chambres.total}`],
+        ['Chambres occupées', `${dashboardData.chambres.occupees}`],
+        ['Chambres disponibles', `${dashboardData.chambres.disponibles}`],
+        ['Taux d\'occupation', `${dashboardData.chambres.occupationRate}%`],
+        ['Total stagiaires', `${dashboardData.occupants.total}`],
+        ['Stagiaires garcons', `${dashboardData.occupants.hommes}`],
+        ['Stagiaires filles', `${dashboardData.occupants.femmes}`],
+        ['Personnel', `${dashboardData.staff.total}`],
+      ];
+
+      // Use the autoTable plugin - this is where the error was occurring
+      // Make sure jspdf-autotable is properly imported
+      doc.autoTable({
+        startY: 40,
+        head: [['Indicateur', 'Valeur']],
+        body: statsData,
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: {
+          fillColor: [240, 240, 240]
+        }
+      });
+      
+      // Add tasks section if tasks exist
+      if (dashboardData.tasks && dashboardData.tasks.upcoming && dashboardData.tasks.upcoming.length > 0) {
+        doc.setFontSize(14);
+        doc.setTextColor(44, 62, 80);
+        doc.text('Prochaines tâches', 14, doc.lastAutoTable.finalY + 20);
+        
+        const tasksData = dashboardData.tasks.upcoming.map(task => [
+          new Date(task.date).toLocaleDateString('fr-FR'),
+          task.timeSlot,
+          task.assignedTo,
+          task.title,
+          task.status === 'completed' ? 'Terminé' :
+          task.status === 'pending' ? 'À faire' : 'En cours'
+        ]);
+        
+        doc.autoTable({
+          startY: doc.lastAutoTable.finalY + 25,
+          head: [['Date', 'Horaire', 'Responsable', 'Description', 'Statut']],
+          body: tasksData,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [41, 128, 185],
+            textColor: 255,
+            fontStyle: 'bold'
+          }
+        });
+      }
+      
+      // Add alerts section if alerts exist
+      if (dashboardData.alerts && dashboardData.alerts.length > 0) {
+        doc.setFontSize(14);
+        doc.setTextColor(44, 62, 80);
+        doc.text('Alertes et notifications', 14, doc.lastAutoTable.finalY + 20);
+        
+        const alertsData = dashboardData.alerts.map(alert => [
+          alert.time,
+          alert.message,
+          alert.type === 'warning' ? 'Avertissement' :
+          alert.type === 'error' ? 'Erreur' : 'Information'
+        ]);
+        
+        doc.autoTable({
+          startY: doc.lastAutoTable.finalY + 25,
+          head: [['Date', 'Message', 'Type']],
+          body: alertsData,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [41, 128, 185],
+            textColor: 255,
+            fontStyle: 'bold'
+          }
+        });
+      }
+      
+      // Add footer with page number
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(10);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${i} sur ${pageCount}`, 105, 287, { align: 'center' });
+        doc.text('© 2025 Gestion du Foyer', 14, 287);
+      }
+      
+      // Save the PDF
+      doc.save(`Rapport_Dashboard_${currentDate.replace(/\//g, '-')}.pdf`);
+      
+      // Show success message
+      alert('Rapport téléchargé avec succès!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Erreur lors de la génération du rapport PDF.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 min-h-[400px]">
@@ -446,15 +584,15 @@ const Dashboard = () => {
             <RefreshIcon className="h-4 w-4 mr-2" />
             Actualiser
           </button>
-          <button 
-            className="px-3 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition-colors"
-            onClick={() => {
-              // Generate basic report logic would go here
-              alert('Fonctionnalité de rapport à venir dans une prochaine version!');
-            }}
+          {/* <button 
+            className="px-3 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition-colors flex items-center"
+            onClick={generatePDFReport}
           >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+            </svg>
             Télécharger le rapport
-          </button>
+          </button> */}
         </div>
       </div>
       
@@ -577,14 +715,6 @@ const Dashboard = () => {
             />
           </InfoCard>
           
-          {/* Activité récente */}
-          <InfoCard 
-            title="Activité hebdomadaire" 
-            icon={<ChartBarIcon className="h-5 w-5" />}
-            actionLabel="Voir rapports"
-          >
-            <ActivityChart weeklyActivity={weeklyActivity} />
-          </InfoCard>
         </div>
         
         {/* Sidebar latérale (1/3 sur desktop) */}
@@ -634,7 +764,7 @@ const Dashboard = () => {
                 <div className="text-sm font-medium text-gray-700 mb-2">Genre</div>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">Hommes</span>
+                    <span className="text-xs text-gray-500">Garcons</span>
                     <span className="text-sm font-medium text-gray-800">{occupants.hommes}</span>
                   </div>
                   <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
@@ -645,7 +775,7 @@ const Dashboard = () => {
                   </div>
                   
                   <div className="flex justify-between items-center mt-3">
-                    <span className="text-xs text-gray-500">Femmes</span>
+                    <span className="text-xs text-gray-500">Filles</span>
                     <span className="text-sm font-medium text-gray-800">{occupants.femmes}</span>
                   </div>
                   <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
