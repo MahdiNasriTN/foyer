@@ -158,7 +158,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
       dateOfBirth: '1998-03-12',
       placeOfBirth: 'Sousse',
       nationality: 'Tunisienne',
-      currentSituation: 'Étudiant',
+      currentSituation: 'Stagiaire',
       phoneNumber: '55123456',
       sendingAddress: '25 Rue Ibn Khaldoun',
       city: 'Tunis',

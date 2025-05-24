@@ -259,36 +259,35 @@ export const fetchChambreOccupants = async (chambreId, signal) => {
 // Récupérer toutes les chambres avec filtres optionnels
 export const fetchChambres = async (filters = {}) => {
   try {
-    // Construction des paramètres de requête à partir des filtres
-    const queryParams = new URLSearchParams();
+    // Create query parameters
+    const params = new URLSearchParams();
     
-    if (filters.status && filters.status !== 'all') {
-      queryParams.append('status', filters.status);
+    // Map status values to what the backend expects
+    if (filters.status) {
+      // If your backend expects 'occupied' and 'available' instead of 'occupée' and 'libre'
+      const statusMap = {
+        'occupée': 'occupied',
+        'libre': 'available'
+      };
+      
+      params.append('status', statusMap[filters.status] || filters.status);
     }
     
-    if (filters.etage && filters.etage !== 'all') {
-      queryParams.append('etage', filters.etage);
-    }
+    // Add other filters
+    if (filters.etage) params.append('etage', filters.etage);
+    if (filters.search) params.append('search', filters.search);
+    if (filters.sortBy) params.append('sortBy', filters.sortBy);
+    if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
     
-    if (filters.search) {
-      queryParams.append('search', filters.search);
-    }
-    
-    if (filters.sortBy) {
-      queryParams.append('sortBy', filters.sortBy);
-      if (filters.sortOrder) {
-        queryParams.append('sortOrder', filters.sortOrder);
-      }
-    }
-    
-    const queryString = queryParams.toString();
-    const url = `/api/v1/chambres${queryString ? `?${queryString}` : ''}`;
+    const url = `/api/v1/chambres${params.toString() ? '?' + params.toString() : ''}`;
+    console.log('Fetching chambres with URL:', url);
     
     const response = await API.get(url);
-    return response;
+    console.log('Chambres fetched successfully:', response.data);
+    return response.data;
   } catch (error) {
     console.error('Error fetching chambres:', error);
-    throw error.response?.data || error;
+    throw error;
   }
 };
 
@@ -339,11 +338,24 @@ export const deleteChambre = async (id) => {
 // Assigner des occupants à une chambre
 export const assignOccupantsToRoom = async (roomId, occupantIds) => {
   try {
-    const response = await API.post(`/api/v1/chambres/${roomId}/occupants`, { occupantIds });
+    console.log(`Assigning occupants to room ${roomId}:`, occupantIds);
+    
+    // Make sure occupantIds is an array of strings
+    const sanitizedOccupantIds = occupantIds.map(id => 
+      typeof id === 'object' && id._id ? id._id : String(id)
+    );
+    
+    console.log("Sanitized occupantIds:", sanitizedOccupantIds);
+    
+    const response = await API.post(`/api/v1/chambres/${roomId}/assign`, {
+      occupantIds: sanitizedOccupantIds
+    });
+    
+    console.log("Assignment response:", response.data);
     return response.data;
   } catch (error) {
-    console.error('Error assigning occupants:', error);
-    throw error.response?.data || error;
+    console.error("Error in assignOccupantsToRoom:", error);
+    throw error;
   }
 };
 
@@ -425,5 +437,16 @@ export const getPersonnelSchedule = async (personnelId) => {
   } catch (error) {
     console.error('Error fetching personnel schedule:', error);
     throw error.response?.data || error;
+  }
+};
+
+// Add this new function to fetch all occupied rooms
+export const fetchAllOccupiedRooms = async () => {
+  try {
+    const response = await API.get('/api/v1/chambres?status=occupée');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching occupied rooms:', error);
+    throw error;
   }
 };

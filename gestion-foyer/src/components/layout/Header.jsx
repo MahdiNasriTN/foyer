@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { 
-  BellIcon, 
-  SearchIcon, 
-  LogoutIcon, 
+import {
+  BellIcon,
+  SearchIcon,
+  LogoutIcon,
   MenuIcon,
   UserCircleIcon,
   ChevronDownIcon
 } from '@heroicons/react/outline';
 import { BellIcon as BellIconSolid } from '@heroicons/react/solid';
+import { useUser } from '../../contexts/UserContext';
 
 const Header = ({ onLogout }) => {
   const location = useLocation();
@@ -16,12 +17,11 @@ const Header = ({ onLogout }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  
+
+  const { userData, loading, userInitials, avatarColor } = useUser();
+
   // Notifications fictives pour la démo
   const notifications = [
-    { id: 1, message: "Nouvel étudiant enregistré", time: "Il y a 5 min", isRead: false },
-    { id: 2, message: "Chambre 203 libérée", time: "Il y a 2h", isRead: false },
-    { id: 3, message: "Tâche de cuisine assignée", time: "Hier, 18:45", isRead: true },
   ];
 
   // Effet pour détecter le scroll
@@ -33,7 +33,7 @@ const Header = ({ onLogout }) => {
         setScrolled(false);
       }
     };
-    
+
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -43,7 +43,7 @@ const Header = ({ onLogout }) => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
-    
+
     return () => clearInterval(timer);
   }, []);
 
@@ -52,7 +52,7 @@ const Header = ({ onLogout }) => {
     hour: '2-digit',
     minute: '2-digit'
   });
-  
+
   const dateString = currentTime.toLocaleDateString('fr-FR', {
     weekday: 'long',
     day: 'numeric',
@@ -65,7 +65,7 @@ const Header = ({ onLogout }) => {
   // Fonction pour obtenir les informations de page en fonction du chemin actuel
   const getPageInfo = () => {
     const path = location.pathname;
-    
+
     // Correspondance des chemins aux titres de page
     const routeMap = {
       '/': 'Tableau de bord',
@@ -75,7 +75,7 @@ const Header = ({ onLogout }) => {
       '/cuisine': 'Gestion de la Cuisine',
       '/parametres': 'Paramètres'
     };
-    
+
     // Si le chemin exact correspond à une entrée dans routeMap
     if (routeMap[path]) {
       return {
@@ -83,7 +83,7 @@ const Header = ({ onLogout }) => {
         path: path
       };
     }
-    
+
     // Pour les sous-pages ou les pages dynamiques (ex: /stagiaires/123)
     for (const [route, title] of Object.entries(routeMap)) {
       if (path.startsWith(route) && route !== '/') {
@@ -99,7 +99,7 @@ const Header = ({ onLogout }) => {
         }
       }
     }
-    
+
     // Fallback pour les pages non trouvées
     return {
       title: 'Page',
@@ -108,12 +108,14 @@ const Header = ({ onLogout }) => {
   };
 
   const pageInfo = getPageInfo();
+  const displayName = userData?.firstName && userData?.lastName
+    ? `${userData.firstName} ${userData.lastName}`
+    : userData?.email?.split('@')[0] || 'Utilisateur';
 
   return (
-    <header 
-      className={`bg-white sticky top-0 z-50 transition-all duration-300 ${
-        scrolled ? 'shadow-md' : 'shadow-sm'
-      }`}
+    <header
+      className={`bg-white sticky top-0 z-50 transition-all duration-300 ${scrolled ? 'shadow-md' : 'shadow-sm'
+        }`}
     >
       <div className="h-16 px-6 flex items-center justify-between">
         {/* Partie gauche */}
@@ -128,123 +130,83 @@ const Header = ({ onLogout }) => {
             Admin Foyer
           </h2>
         </div>
-        
+
         {/* Partie droite */}
         <div className="flex items-center space-x-5">
-          {/* Barre de recherche avec animation */}
-          <div className="relative hidden md:block group">
-            <input
-              type="text"
-              placeholder="Rechercher..."
-              className="pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent w-48 transition-all duration-300 focus:w-64"
-            />
-            <SearchIcon className="h-5 w-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
-          </div>
-          
+
           <button className="md:hidden">
             <SearchIcon className="h-6 w-6 text-gray-500" />
           </button>
-          
+
           {/* Date et heure actuelles */}
           <div className="hidden md:flex flex-col items-end">
             <p className="text-sm font-medium text-gray-900">{timeString}</p>
             <p className="text-xs text-gray-500">{dateString}</p>
           </div>
 
-          {/* Notifications avec badge et menu déroulant */}
-          <div className="relative">
-            <button 
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 rounded-full hover:bg-gray-100 transition-colors"
-              aria-label="Notifications"
-            >
-              {unreadCount > 0 ? (
-                <>
-                  <BellIconSolid className="h-6 w-6 text-primary" />
-                  <span className="absolute top-1 right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                </>
-              ) : (
-                <BellIcon className="h-6 w-6 text-gray-500" />
-              )}
-            </button>
-            
-            {/* Menu des notifications */}
-            {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg py-2 border border-gray-200 z-50">
-                <div className="px-4 py-2 border-b border-gray-100">
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-medium text-gray-800">Notifications</h3>
-                    <button className="text-xs text-primary hover:text-primary-dark">
-                      Marquer tout comme lu
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="max-h-72 overflow-y-auto">
-                  {notifications.length > 0 ? (
-                    notifications.map((notification) => (
-                      <div 
-                        key={notification.id} 
-                        className={`px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-start ${
-                          notification.isRead ? 'opacity-70' : ''
-                        }`}
-                      >
-                        <div className={`w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${
-                          notification.isRead ? 'bg-gray-300' : 'bg-primary'
-                        }`}></div>
-                        <div className="ml-3">
-                          <p className="text-sm text-gray-800">{notification.message}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{notification.time}</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="px-4 py-6 text-center text-gray-500">
-                      Aucune notification
-                    </div>
-                  )}
-                </div>
-                
-                <div className="border-t border-gray-100 px-4 py-2">
-                  <button className="text-sm text-primary hover:text-primary-dark w-full text-center">
-                    Voir toutes les notifications
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          
+
           {/* Menu utilisateur avec dropdown */}
           <div className="relative">
-            <button 
+            <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center space-x-1 hover:bg-gray-100 p-2 rounded-lg transition-colors"
+              className="flex items-center space-x-2 hover:bg-gray-100 p-2 rounded-lg transition-colors"
             >
-              <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
-                <UserCircleIcon className="h-6 w-6" />
+              {/* Profile Image or Initials */}
+              <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
+                {userData?.avatar ? (
+                  <img
+                    src={userData.avatar}
+                    alt={displayName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="h-full w-full flex items-center justify-center"
+                    style={{ backgroundColor: avatarColor }}
+                  >
+                    <span className="text-sm font-bold text-white">
+                      {userInitials}
+                    </span>
+                  </div>
+                )}
               </div>
-              <span className="hidden sm:inline text-sm font-medium">Admin</span>
+
+              {/* User Name and Role */}
+              <div className="hidden sm:block text-left">
+                <p className="text-sm font-medium text-gray-900 leading-tight">
+                  {loading ? 'Chargement...' : displayName}
+                </p>
+                <p className="text-xs text-gray-500 leading-tight capitalize">
+                  {userData?.role || 'Utilisateur'}
+                </p>
+              </div>
               <ChevronDownIcon className="h-4 w-4 text-gray-500" />
             </button>
-            
-            {/* Menu utilisateur */}
+
             {showUserMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 border border-gray-200 z-50">
-                <Link to="/profil" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                  <UserCircleIcon className="h-4 w-4 mr-2" />
-                  <span>Mon profil</span>
-                </Link>
-                <Link to="/parametres" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span>Paramètres</span>
-                </Link>
-                <hr className="my-1 border-gray-200" />
-                <button 
+                <div className="px-4 py-2 border-b border-gray-100 sm:hidden">
+                  <p className="text-sm font-medium text-gray-900">{displayName}</p>
+                  <p className="text-xs text-gray-500">{userData.email}</p>
+                </div>
+
+                {/* Show Settings link only for superadmin */}
+                {userData && userData.role === 'superadmin' && (
+                  <Link to="/settings" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span>Paramètres</span>
+                  </Link>
+                )}
+
+                {/* Show divider only if Settings is shown */}
+                {userData && userData.role === 'superadmin' && (
+                  <hr className="my-1 border-gray-200" />
+                )}
+
+                <button
                   onClick={onLogout}
                   className="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                 >
@@ -256,7 +218,7 @@ const Header = ({ onLogout }) => {
           </div>
         </div>
       </div>
-      
+
       {/* Breadcrumb ou fil d'Ariane dynamique */}
       <div className="px-6 py-2 bg-gray-50 text-xs text-gray-500 hidden md:block">
         <div className="flex items-center space-x-1">

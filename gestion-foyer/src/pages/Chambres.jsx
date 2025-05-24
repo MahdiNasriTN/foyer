@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { mockEtudiants, mockStagiaires } from '../utils/mockData'; // Nous allons toujours utiliser les données simulées pour les occupants pour l'instant
 import {
     PlusIcon,
@@ -13,14 +13,15 @@ import ChambreModal from '../components/chambres/ChambreModal';
 import AssignModal from '../components/chambres/AssignModal';
 import ChambreCard from '../components/chambres/ChambreCard';
 import ChambreStats from '../components/chambres/ChambreStats';
-import { 
-    fetchChambres, 
-    createChambre, 
-    updateChambre, 
-    deleteChambre, 
-    assignOccupantsToRoom 
+import {
+    fetchChambres,
+    createChambre,
+    updateChambre,
+    deleteChambre,
+    assignOccupantsToRoom
 } from '../services/api';
 import DeleteChambreModal from '../components/chambres/DeleteChambreModal';
+import ManageOccupantsModal from '../components/chambres/ManageOccupantsModal';
 
 const Chambres = () => {
     // États
@@ -37,48 +38,69 @@ const Chambres = () => {
     const [sortOption, setSortOption] = useState('numero');
     const [filterEtage, setFilterEtage] = useState('all');
     const [notification, setNotification] = useState({
-        show: false, 
-        message: '', 
+        show: false,
+        message: '',
         type: ''
     });
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [chambreToDelete, setChambreToDelete] = useState(null);
+    const [showManageOccupantsModal, setShowManageOccupantsModal] = useState(false);
 
     // Charger les chambres depuis l'API
-    const loadChambres = async () => {
+    const loadChambres = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
+            // Create status filter - don't use the statusMap here, we'll handle that in the API service
+            const statusFilter = filterStatus !== 'all' ? filterStatus : null;
+
             const filters = {
-                status: filterStatus !== 'all' ? filterStatus : null,
+                status: statusFilter,
                 etage: filterEtage !== 'all' ? filterEtage : null,
                 search: searchTerm || null,
                 sortBy: sortOption,
                 sortOrder: 'asc'
             };
-            
+
+            console.log("Sending filters to API:", filters);
+
+            // Call the API
             const response = await fetchChambres(filters);
-            
-            // Traiter la réponse pour assurer la compatibilité avec notre format
-            const processedChambres = response.data.data.map(chambre => ({
-                ...chambre,
-                id: chambre._id || chambre.id,
-                // Adapter les champs pour correspondre à notre modèle frontend si nécessaire
-                statut: chambre.statut || 'libre',
-                occupants: chambre.occupants || [],
-                nombreLits: chambre.nombreLits || chambre.capacite // Fallback sur capacité si non défini
-            }));
-            
-            setChambres(processedChambres);
+
+            // Check if response contains the expected data structure
+            if (response && response.data && Array.isArray(response.data)) {
+                // Process the data to match your component's expected format
+                const processedChambres = response.data.map(chambre => ({
+                    id: chambre._id || chambre.id,
+                    numero: chambre.numero,
+                    etage: chambre.etage,
+                    capacite: chambre.capacite,
+                    statut: chambre.statut, // Use the status exactly as returned from API
+                    amenities: chambre.amenities || [],
+                    equipements: chambre.equipements || [],
+                    occupants: chambre.occupants || [],
+                    nombreLits: chambre.nombreLits || chambre.capacite,
+                    gender: chambre.gender,
+                    type: chambre.type,
+                    // Add any other fields your component needs
+                }));
+
+                console.log("Processed chambres:", processedChambres);
+                setChambres(processedChambres);
+            } else {
+                console.error("Unexpected API response format:", response);
+                setError("Format de réponse API inattendu");
+                setChambres([]);
+            }
         } catch (err) {
             console.error('Erreur lors du chargement des chambres:', err);
-            setError('Impossible de charger les chambres.');
+            setError('Impossible de charger les chambres: ' + (err.message || 'Erreur inconnue'));
             setChambres([]);
         } finally {
             setLoading(false);
         }
-    };
+    }, [filterStatus, filterEtage, searchTerm, sortOption]);
 
     // Charger les chambres au premier rendu et lorsque les filtres changent
     useEffect(() => {
@@ -90,7 +112,7 @@ const Chambres = () => {
         const searchTimer = setTimeout(() => {
             loadChambres();
         }, 500); // Attendre 500ms après la dernière frappe
-        
+
         return () => clearTimeout(searchTimer);
     }, [searchTerm]);
 
@@ -142,7 +164,7 @@ const Chambres = () => {
             setChambreToDelete(null);
         }
     };
-    
+
     const cancelDelete = () => {
         setShowDeleteModal(false);
         setChambreToDelete(null);
@@ -187,28 +209,85 @@ const Chambres = () => {
     const handleAssignOccupants = async (occupantIds) => {
         setLoading(true);
         try {
+            // Get current occupants to identify which ones are being unassigned
+            let currentOccupants = [];
+            if (currentChambre && (currentChambre.occupants || []).length > 0) {
+                // You might need to fetch the current occupants if not already loaded
+                currentOccupants = currentChambre.occupants || [];
+            }
+            
+            // Call API to update room assignments
             await assignOccupantsToRoom(currentChambre.id || currentChambre._id, occupantIds);
+            
+            // Determine whether we're adding, removing, or both
+            const removedIds = currentOccupants.filter(id => !occupantIds.includes(id));
+            const addedIds = occupantIds.filter(id => !currentOccupants.includes(id));
+            
+            // Show proper notification
+            let message = 'Occupants mis à jour avec succès';
+            if (addedIds.length > 0 && removedIds.length > 0) {
+              message = `${addedIds.length} occupant(s) ajouté(s) et ${removedIds.length} retiré(s)`;
+            } else if (addedIds.length > 0) {
+              message = `${addedIds.length} occupant(s) assigné(s) avec succès`;
+            } else if (removedIds.length > 0) {
+              message = `${removedIds.length} occupant(s) retiré(s) avec succès`;
+            }
+            
             setNotification({
-                show: true,
-                message: 'Occupants assignés avec succès',
-                type: 'success'
+              show: true,
+              message: message,
+              type: 'success'
             });
-            // Recharger les chambres après l'assignation
+            
+            // Hide notification after 5 seconds
+            setTimeout(() => {
+              setNotification(prev => ({ ...prev, show: false }));
+            }, 5000);
+            
+            // Reload chambres after assignment
             loadChambres();
-            // Incrémenter le compteur de rafraîchissement
             setRefreshTrigger(prev => prev + 1);
             setShowAssignModal(false);
         } catch (err) {
             console.error('Erreur lors de l\'assignation des occupants:', err);
-            setError('Erreur lors de l\'assignation des occupants.');
-            setNotification({
-                show: true,
-                message: 'Erreur lors de l\'assignation des occupants',
-                type: 'error'
-            });
+
+            if (err.isConflict) {
+                // Format a descriptive message about the conflicts
+                const conflictRooms = [...new Set(err.conflicts.map(c => c.roomNumber))].join(', ');
+
+                setNotification({
+                    show: true,
+                    message: `${err.message} (${conflictRooms}). Veuillez d'abord retirer ces résidents de leur chambre actuelle.`,
+                    type: 'warning'
+                });
+            } else {
+                setError('Erreur lors de l\'assignation des occupants.');
+                setNotification({
+                    show: true,
+                    message: 'Erreur lors de l\'assignation des occupants',
+                    type: 'error'
+                });
+            }
+
+            // Hide notification after 7 seconds
+            setTimeout(() => {
+                setNotification(prev => ({ ...prev, show: false }));
+            }, 7000);
         } finally {
             setLoading(false);
         }
+    };
+
+    // Helper function to get occupant names from their IDs
+    const getConflictOccupantNames = async (conflicts) => {
+        // For this example, we'll use mock data to find names
+        // In a real app, you might need to fetch these from the server
+        const allResidents = [...mockEtudiants, ...mockStagiaires];
+
+        return conflicts.map(conflict => {
+            const occupant = allResidents.find(r => r.id === conflict.occupantId);
+            return occupant ? `${occupant.prenom} ${occupant.nom}` : 'Occupant inconnu';
+        });
     };
 
     // Cacher la notification après 3 secondes
@@ -240,18 +319,87 @@ const Chambres = () => {
     // Filtrage côté client (en complément du filtrage côté serveur)
     const filteredChambres = chambres;
 
+    // Function to open the occupant management modal
+    const handleOpenManageOccupantsModal = (chambre) => {
+        setCurrentChambre(chambre);
+        setShowManageOccupantsModal(true);
+    };
+
+    // Function to remove an occupant from a room
+    const handleRemoveOccupant = async (occupantId) => {
+        if (!currentChambre) return;
+
+        setLoading(true);
+        try {
+            // Get current occupants list without the one to remove
+            const newOccupantIds = currentChambre.occupants.filter(id =>
+                id !== occupantId && id._id !== occupantId
+            );
+
+            // Call API to update the room's occupants
+            await assignOccupantsToRoom(currentChambre.id || currentChambre._id, newOccupantIds);
+
+            // Show success notification
+            setNotification({
+                show: true,
+                message: 'Occupant retiré avec succès',
+                type: 'success'
+            });
+
+            // Hide notification after 5 seconds
+            setTimeout(() => {
+                setNotification(prev => ({ ...prev, show: false }));
+            }, 5000);
+
+            // Reload chambres to reflect changes
+            loadChambres();
+            setRefreshTrigger(prev => prev + 1);
+
+            // Close modal if no more occupants
+            if (newOccupantIds.length === 0) {
+                setShowManageOccupantsModal(false);
+            }
+        } catch (err) {
+            console.error('Erreur lors du retrait de l\'occupant:', err);
+
+            setNotification({
+                show: true,
+                message: 'Erreur lors du retrait de l\'occupant',
+                type: 'error'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // Le reste de votre code JSX reste inchangé...
     return (
         <div className="space-y-8 pb-8">
             {/* Notification */}
             {notification.show && (
-                <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
-                    notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-                } text-white`}>
-                    {notification.message}
+                <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center space-x-2 ${notification.type === 'success' ? 'bg-green-500 text-white' :
+                        notification.type === 'warning' ? 'bg-amber-500 text-white' :
+                            'bg-red-500 text-white'
+                    }`}>
+                    {notification.type === 'warning' && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    )}
+                    {notification.type === 'success' && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                    )}
+                    {notification.type === 'error' && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    )}
+                    <p>{notification.message}</p>
                 </div>
             )}
-            
+
             {/* En-tête et contrôles principaux */}
             <div className="relative">
                 {/* Header premium avec glassmorphism et design élégant */}
@@ -348,8 +496,8 @@ const Chambres = () => {
                                                         key={status}
                                                         onClick={() => setFilterStatus(status)}
                                                         className={`px-3 py-2 text-sm relative ${filterStatus === status
-                                                                ? 'text-white'
-                                                                : 'text-blue-200/70 hover:text-blue-100'
+                                                            ? 'text-white'
+                                                            : 'text-blue-200/70 hover:text-blue-100'
                                                             } ${i > 0 ? 'border-l border-white/10' : ''}`}
                                                     >
                                                         {filterStatus === status && (
@@ -417,8 +565,8 @@ const Chambres = () => {
                                                                 key={option.id}
                                                                 onClick={() => setSortOption(option.id)}
                                                                 className={`flex w-full items-center px-3 py-2 text-sm ${sortOption === option.id
-                                                                        ? 'bg-cyan-500/20 text-white'
-                                                                        : 'text-blue-100/80 hover:bg-slate-700/70'
+                                                                    ? 'bg-cyan-500/20 text-white'
+                                                                    : 'text-blue-100/80 hover:bg-slate-700/70'
                                                                     }`}
                                                             >
                                                                 {option.label}
@@ -536,6 +684,7 @@ const Chambres = () => {
                                 onEdit={() => handleOpenModal(chambre)}
                                 onDelete={() => handleOpenDeleteModal(chambre)}
                                 onAssign={() => handleOpenAssignModal(chambre)}
+                                onManage={() => handleOpenManageOccupantsModal(chambre)} // Add this line
                                 residents={[...mockEtudiants, ...mockStagiaires]}
                                 refreshTrigger={refreshTrigger}
                             />
@@ -673,7 +822,7 @@ const Chambres = () => {
                                                     title="Supprimer"
                                                 >
                                                     <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 00-1-1h-4a1 1 00-1 1v3M4 7h16" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 00-1-1h-4a1 1 00-1 1v3M4 7h16" />
                                                     </svg>
                                                 </button>
                                             </div>
@@ -718,6 +867,14 @@ const Chambres = () => {
                 chambre={chambreToDelete}
             />
 
+            <ManageOccupantsModal
+                isOpen={showManageOccupantsModal}
+                onClose={() => setShowManageOccupantsModal(false)}
+                chambre={currentChambre}
+                residents={[...mockEtudiants, ...mockStagiaires]}
+                onRemoveOccupant={handleRemoveOccupant}
+            />
+
             <style jsx>{`
         .btn {
           @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-200;
@@ -741,7 +898,7 @@ const Chambres = () => {
                     </div>
                 </div>
             )}
-            
+
             {/* Affichage des erreurs */}
             {error && (
                 <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded">

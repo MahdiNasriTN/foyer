@@ -30,6 +30,7 @@ import {
   BriefcaseIcon as BriefcaseIconSolid,
   UserIcon as UserIconSolid
 } from '@heroicons/react/solid';
+import { useUser } from '../../contexts/UserContext';
 
 const Sidebar = ({ onLogout, onNavigateToEtudiants }) => {
   const location = useLocation();
@@ -37,10 +38,11 @@ const Sidebar = ({ onLogout, onNavigateToEtudiants }) => {
   const [hoveredPath, setHoveredPath] = useState(null);
   const [animating, setAnimating] = useState(false);
   const [hoverDelay, setHoverDelay] = useState(false);
-  
-  // Current time state
   const [currentTime, setCurrentTime] = useState(new Date());
   const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // Use the global user context instead of local state
+  const { userData, loading, userInitials, avatarColor, userRole } = useUser();
   
   // Animation helpers
   const handleCollapse = () => {
@@ -89,107 +91,135 @@ const Sidebar = ({ onLogout, onNavigateToEtudiants }) => {
       };
     }
   }, [hoveredPath]);
-  
+
   // Définition des éléments de navigation - Ajout des dotColor pour tous les éléments
-  const navItems = [
-    { 
-      name: 'Tableau de Bord', 
-      path: '/', 
-      icon: <HomeIcon className="h-5 w-5" />,
-      activeIcon: <HomeIconSolid className="h-5 w-5" />,
-      dotColor: 'blue',
-      description: 'Vue d\'ensemble et statistiques',
-      color: '#3B82F6',
-      hoverColor: '#60A5FA',
-      lightColor: '#EFF6FF',
-      category: 'main'
-    },
-    
-    { 
-      name: 'Gestion des Stagiaires', 
-      path: '/stagiaires', 
-      icon: <BriefcaseIcon className="h-5 w-5" />,
-      activeIcon: <BriefcaseIconSolid className="h-5 w-5" />,
-      dotColor: 'blue',
-      description: 'Gestion des stagiaires hébergés',
-      color: '#8B5CF6',
-      hoverColor: '#A78BFA',
-      lightColor: '#F5F3FF',
-      category: 'gestion'
-    },
-    { 
-      name: 'Gestion du Personnel', 
-      path: '/personnel', 
-      icon: <UserIcon className="h-5 w-5" />,
-      activeIcon: <UserIconSolid className="h-5 w-5" />,
-      dotColor: 'indigo',
-      description: 'Gestion du personnel',
-      color: '#6366F1',
-      hoverColor: '#818CF8',
-      lightColor: '#EEF2FF',
-      category: 'gestion'
-    },
-    { 
-      name: 'Gestion des Chambres', 
-      path: '/chambres', 
-      icon: <OfficeBuildingIcon className="h-5 w-5" />,
-      activeIcon: <OfficeBuildingIconSolid className="h-5 w-5" />,
-      dotColor: 'green',
-      description: 'Gestion des chambres et occupations',
-      color: '#10B981',
-      hoverColor: '#34D399',
-      lightColor: '#ECFDF5',
-      category: 'gestion'
-    },
-    { 
-      name: 'Gestion de la Cuisine', 
-      path: '/cuisine', 
-      icon: <CakeIcon className="h-5 w-5" />,
-      activeIcon: <CakeIconSolid className="h-5 w-5" />,
-      dotColor: 'amber',
-      description: 'Aperçu de la restauration',
-      color: '#F59E0B',
-      hoverColor: '#FBBF24',
-      lightColor: '#FFFBEB',
-      category: 'gestion'
-    },
-    { 
-      name: 'Paramètres', 
-      path: '/parametres', 
-      icon: <AdjustmentsIcon className="h-5 w-5" />,
-      activeIcon: <AdjustmentsIcon className="h-5 w-5" />,
-      dotColor: 'gray',
-      description: 'Configuration du système',
-      color: '#6B7280',
-      hoverColor: '#9CA3AF',
-      lightColor: '#F9FAFB',
-      category: 'system'
-    },
-    { 
-      name: 'Documentation', 
-      path: '/documentation', 
-      icon: <DocumentTextIcon className="h-5 w-5" />,
-      activeIcon: <DocumentTextIconSolid className="h-5 w-5" />,
-      dotColor: 'blue',
-      description: 'Guide d\'utilisation complet',
-      color: '#3B82F6',
-      hoverColor: '#60A5FA',
-      lightColor: '#EFF6FF',
-      category: 'support'
-    },
-  ];
+  // The complete updated navItems array
+const navItems = [
+  { 
+    name: 'Tableau de Bord', 
+    path: '/', 
+    icon: <HomeIcon className="h-5 w-5" />,
+    activeIcon: <HomeIconSolid className="h-5 w-5" />,
+    dotColor: 'blue',
+    description: 'Vue d\'ensemble et statistiques',
+    color: '#3B82F6',
+    hoverColor: '#60A5FA',
+    lightColor: '#EFF6FF',
+    category: 'main',
+    roles: ['user', 'admin', 'superadmin'] // All roles can see this
+  },
+  
+  { 
+    name: 'Gestion des Stagiaires', 
+    path: '/stagiaires', 
+    icon: <BriefcaseIcon className="h-5 w-5" />,
+    activeIcon: <BriefcaseIconSolid className="h-5 w-5" />,
+    dotColor: 'blue',
+    description: 'Gestion des stagiaires hébergés',
+    color: '#8B5CF6',
+    hoverColor: '#A78BFA',
+    lightColor: '#F5F3FF',
+    category: 'gestion',
+    roles: ['admin', 'superadmin'] // Admin and superadmin only
+  },
+  { 
+    name: 'Gestion du Personnel', 
+    path: '/personnel', 
+    icon: <UserIcon className="h-5 w-5" />,
+    activeIcon: <UserIconSolid className="h-5 w-5" />,
+    dotColor: 'indigo',
+    description: 'Gestion du personnel',
+    color: '#6366F1',
+    hoverColor: '#818CF8',
+    lightColor: '#EEF2FF',
+    category: 'gestion',
+    roles: ['admin', 'superadmin'] // Admin and superadmin only
+  },
+  { 
+    name: 'Gestion des Chambres', 
+    path: '/chambres', 
+    icon: <OfficeBuildingIcon className="h-5 w-5" />,
+    activeIcon: <OfficeBuildingIconSolid className="h-5 w-5" />,
+    dotColor: 'green',
+    description: 'Gestion des chambres et occupations',
+    color: '#10B981',
+    hoverColor: '#34D399',
+    lightColor: '#ECFDF5',
+    category: 'gestion',
+    roles: ['admin', 'superadmin'] // Admin and superadmin only
+  },
+  { 
+    name: 'Gestion de la Cuisine', 
+    path: '/cuisine', 
+    icon: <CakeIcon className="h-5 w-5" />,
+    activeIcon: <CakeIconSolid className="h-5 w-5" />,
+    dotColor: 'amber',
+    description: 'Aperçu de la restauration',
+    color: '#F59E0B',
+    hoverColor: '#FBBF24',
+    lightColor: '#FFFBEB',
+    category: 'gestion',
+    roles: ['admin', 'superadmin'] // Admin and superadmin only
+  },
+  { 
+    name: 'Planning du Personnel', 
+    path: '/schedule', 
+    icon: <ClipboardListIcon className="h-5 w-5" />,
+    activeIcon: <ClipboardListIconSolid className="h-5 w-5" />,
+    dotColor: 'purple',
+    description: 'Planning général du personnel',
+    color: '#8B5CF6',
+    hoverColor: '#A78BFA',
+    lightColor: '#F5F3FF',
+    category: 'gestion',
+    roles: ['superadmin'] // Superadmin only
+  },
+  { 
+    name: 'Paramètres', 
+    path: '/settings', 
+    icon: <AdjustmentsIcon className="h-5 w-5" />,
+    activeIcon: <AdjustmentsIcon className="h-5 w-5" />,
+    dotColor: 'gray',
+    description: 'Configuration du profil et du système',
+    color: '#6B7280',
+    hoverColor: '#9CA3AF',
+    lightColor: '#F9FAFB',
+    category: 'system',
+    roles: ['superadmin'] // Superadmin only
+  },
+  // { 
+  //   name: 'Documentation', 
+  //   path: '/documentation', 
+  //   icon: <DocumentTextIcon className="h-5 w-5" />,
+  //   activeIcon: <DocumentTextIconSolid className="h-5 w-5" />,
+  //   dotColor: 'blue',
+  //   description: 'Guide d\'utilisation complet',
+  //   color: '#3B82F6',
+  //   hoverColor: '#60A5FA',
+  //   lightColor: '#EFF6FF',
+  //   category: 'support',
+  //   roles: ['user', 'admin', 'superadmin'] // All roles can see this
+  // },
+];
+
+  // Filter items based on user role from context
+  const filteredNavItems = useMemo(() => {
+    return navItems.filter(item => 
+      item.roles && item.roles.includes(userRole)
+    );
+  }, [navItems, userRole]);
 
   // Grouper les éléments par catégorie
   const groupedNavItems = useMemo(() => {
     const groups = {};
-    navItems.forEach(item => {
+    filteredNavItems.forEach(item => {
       if (!groups[item.category]) {
         groups[item.category] = [];
       }
       groups[item.category].push(item);
     });
     return groups;
-  }, [navItems]);
+  }, [filteredNavItems]);
 
   // Déterminer si un chemin est actif, même partiellement
   const isActivePath = (path) => {
@@ -411,13 +441,25 @@ const Sidebar = ({ onLogout, onNavigateToEtudiants }) => {
         ) : (
           <div className="flex items-center space-x-3">
             <div className="relative">
-              <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 border border-gray-700">
-                <span className="text-sm font-bold text-white">A</span>
-              </div>
+              {userData?.avatar ? (
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-700">
+                  <img 
+                    src={userData.avatar} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 border border-gray-700">
+                  <span className="text-sm font-bold text-white">{userInitials}</span>
+                </div>
+              )}
               <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-gray-900"></div>
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-white truncate">Admin</div>
+              <div className="text-sm font-semibold text-white truncate capitalize">
+                {loading ? 'Chargement...' : userRole}
+              </div>
               <div className="text-xs text-gray-400 flex items-center">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></div>
                 Connecté
