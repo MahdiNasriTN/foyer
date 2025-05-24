@@ -103,6 +103,11 @@ const chambreSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  occupants: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'Stagiaire',
+    default: []
+  },
   gender: {
     type: String,
     enum: ['garcon', 'fille'],
@@ -123,7 +128,7 @@ const chambreSchema = new mongoose.Schema({
 });
 
 // Virtual field for occupants
-chambreSchema.virtual('occupants', {
+chambreSchema.virtual('occupantsDetails', {
   ref: 'Stagiaire',
   localField: '_id',
   foreignField: 'chambre'
@@ -143,14 +148,14 @@ chambreSchema.virtual('tauxOccupation').get(function() {
 
 // Method to check if room is available
 chambreSchema.methods.isAvailable = function() {
-  return this.statut === 'disponible' || this.statut === 'libre';
+  return this.statut === 'libre';
 };
 
 // Middleware pour mapper les statuts entre le frontend et le backend
 chambreSchema.pre('save', function(next) {
   // Mapper les statuts
   if (this.statut === 'occupée') this.statut = 'occupee';
-  if (this.statut === 'libre') this.statut = 'disponible';
+  if (this.statut === 'libre') this.statut = 'libre';
   
   // Copier equipements vers amenities si nécessaire
   if (this.equipements && this.equipements.length > 0 && (!this.amenities || this.amenities.length === 0)) {

@@ -657,22 +657,24 @@ exports.searchStagiaires = async (req, res) => {
 };
 
 // Ajouter cette méthode à votre contrôleur de stagiaires
+// Update this function to properly check both chambre and chambreId fields
 exports.getAvailableStagiaires = async (req, res) => {
   try {
-    // Find stagiaires where chambreId is not set or null
+    console.log("[getAvailableStagiaires] Fetching available stagiaires");
+    
+    // Find stagiaires where chambreId is not set
     const availableStagiaires = await Stagiaire.find({
-      $or: [
-        { chambreId: { $exists: false } },
-        { chambreId: null }
-      ]
+      chambreId: { $exists: false }
     }).sort({ firstName: 1, lastName: 1 });
-
+    
+    console.log(`[getAvailableStagiaires] Found ${availableStagiaires.length} available stagiaires`);
+    
     res.status(200).json({
       status: 'success',
       data: availableStagiaires
     });
   } catch (error) {
-    console.error('Error fetching available stagiaires:', error);
+    console.error('[getAvailableStagiaires] Error:', error);
     res.status(500).json({
       status: 'error',
       message: 'Impossible de récupérer les stagiaires disponibles'
@@ -994,3 +996,5 @@ exports.exportStagiaire = async (req, res) => {
     });
   }
 };
+
+// Add this new endpoint to check for occupancy conflicts

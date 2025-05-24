@@ -330,5 +330,7 @@ router.post('/:id/occupants', chambreController.assignOccupants);
  *         description: Erreur serveur
  */
 router.get('/:id/occupants', chambreController.getChambreOccupants);
+router.post('/:id/check-occupants', chambreController.checkOccupantsAvailability);
+router.post('/:id/assign', chambreController.assignOccupants);
 
 module.exports = router;

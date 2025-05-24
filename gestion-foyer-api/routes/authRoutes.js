@@ -1,9 +1,8 @@
 // routes/authRoutes.js
 const express = require('express');
-const authController = require('../controllers/authController');
-const { protect, restrictTo } = require('../middlewares/auth');
-
 const router = express.Router();
+const authController = require('../controllers/authController');
+const { protect } = require('../middlewares/auth');
 
 /**
  * @swagger
@@ -124,7 +123,7 @@ router.post('/login', authController.login);
  *       403:
  *         description: Non autorisé
  */
-router.post('/register', protect, restrictTo('admin'), authController.register);
+router.post('/register', authController.register);
 
 /**
  * @swagger
@@ -142,6 +141,15 @@ router.post('/register', protect, restrictTo('admin'), authController.register);
  *       401:
  *         description: Non authentifié
  */
-router.get('/me', protect, authController.getMe);
+
+// Protected routes - need authentication
+router.use(protect); // All routes after this middleware will require authentication
+
+// Note: Change this to match the URL your frontend is requesting
+router.get('/me', authController.getMe); // This should match the /auth/me endpoint
+
+// Add user profile routes
+router.get('/profile', authController.getUserProfile);
+router.put('/profile', authController.updateUserProfile);
 
 module.exports = router;

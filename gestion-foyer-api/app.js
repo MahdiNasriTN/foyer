@@ -5,6 +5,8 @@ const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocs = require('./config/swagger');
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -12,8 +14,8 @@ const stagiaireRoutes = require('./routes/stagiaireRoutes');
 const chambreRoutes = require('./routes/chambreRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const personnelRoutes = require('./routes/personnelRoutes');
-// const kitchenTaskRoutes = require('./routes/kitchenTaskRoutes');
-
+const scheduleRoutes = require('./routes/scheduleRoutes');
+const userRoutes = require('./routes/userRoutes');
 // Initialize express app
 const app = express();
 
@@ -61,7 +63,8 @@ app.use('/api/v1/stagiaires', stagiaireRoutes);
 app.use('/api/v1/chambres', chambreRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/personnel', personnelRoutes);
-// app.use('/api/v1/kitchen-tasks', kitchenTaskRoutes);
+app.use('/api/v1/schedule', scheduleRoutes);
+app.use('/api/v1/users', userRoutes);
 
 /**
  * @swagger
@@ -82,6 +85,21 @@ app.use('/api/v1/personnel', personnelRoutes);
 app.get('/', (req, res) => {
   res.send('API is running');
 });
+
+// Make the uploads directory available publicly
+app.use('/uploads', express.static('uploads'));
+
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+
+// Create avatars subdirectory if it doesn't exist
+const avatarsDir = path.join(uploadsDir, 'avatars');
+if (!fs.existsSync(avatarsDir)) {
+  fs.mkdirSync(avatarsDir);
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {

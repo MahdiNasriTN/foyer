@@ -8,12 +8,28 @@ exports.getAllChambres = async (req, res) => {
     
     // Filtrage par statut
     if (req.query.status) {
-      query.statut = req.query.status;
+      // Map frontend values to database values if needed
+      const statusValue = req.query.status;
+      
+      // Add logging to debug the incoming parameter
+      console.log('Status filter received:', statusValue);
+      
+      // Convertir en minuscules et gérer les problèmes d'encodage
+      const normalizedStatus = statusValue.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      
+      // Mapper vers vos valeurs de base de données
+      if (normalizedStatus === 'libre' || normalizedStatus === 'available') {
+        query.statut = 'libre';
+      } else if (normalizedStatus === 'occupee' || normalizedStatus === 'occupied' || normalizedStatus === 'occupée') {
+        query.statut = 'occupee';
+      }
+      
+      console.log('Status query condition:', query.statut);
     }
     
     // Filtrage par étage
     if (req.query.etage) {
-      query.etage = parseInt(req.query.etage);
+      query.etage = req.query.etage;
     }
     
     // Recherche par numéro
@@ -21,19 +37,21 @@ exports.getAllChambres = async (req, res) => {
       query.numero = { $regex: req.query.search, $options: 'i' };
     }
     
+    // Exécution de la requête
+    let chambres = await Chambre.find(query);
+    
+    // Journaliser les résultats pour le débogage
+    console.log(`Found ${chambres.length} chambres matching query:`, query);
+    
     // Tri
-    let sortOption = {};
     if (req.query.sortBy) {
       const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
-      sortOption[req.query.sortBy] = sortOrder;
-    } else {
-      sortOption = { numero: 1 };
+      chambres = chambres.sort((a, b) => {
+        if (a[req.query.sortBy] < b[req.query.sortBy]) return -1 * sortOrder;
+        if (a[req.query.sortBy] > b[req.query.sortBy]) return 1 * sortOrder;
+        return 0;
+      });
     }
-    
-    // Exécution de la requête avec populate pour obtenir les détails des occupants
-    const chambres = await Chambre.find(query)
-      .sort(sortOption)
-      .populate('occupants');
     
     res.status(200).json({
       status: 'success',
@@ -41,9 +59,10 @@ exports.getAllChambres = async (req, res) => {
       data: chambres
     });
   } catch (error) {
+    console.error('Error fetching chambres:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: 'Une erreur est survenue lors de la récupération des chambres'
     });
   }
 };
@@ -86,7 +105,7 @@ exports.createChambre = async (req, res) => {
     
     // Convertir le statut si nécessaire
     let statut = req.body.statut;
-    if (statut === 'libre') statut = 'disponible';
+    if (statut === 'libre') statut = 'libre';
     if (statut === 'occupée') statut = 'occupee';
     
     // Créer la chambre en prenant en compte les deux noms possibles pour équipements
@@ -216,63 +235,107 @@ exports.deleteChambre = async (req, res) => {
 // Assigner des occupants à une chambre
 exports.assignOccupants = async (req, res) => {
   try {
+    const { id } = req.params;
     const { occupantIds } = req.body;
-    const chambreId = req.params.id;
-    
-    if (!occupantIds || !Array.isArray(occupantIds)) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'La liste des occupants est requise'
-      });
-    }
-    
-    // Récupérer la chambre
-    const chambre = await Chambre.findById(chambreId);
-    
+
+    // Log for debugging
+    console.log(`[assignOccupants] Room ID: ${id}, Occupant IDs:`, occupantIds);
+
+    // Find the room to assign occupants to
+    const chambre = await Chambre.findById(id);
     if (!chambre) {
       return res.status(404).json({
         status: 'fail',
-        message: 'Chambre non trouvée'
+        message: 'Chambre not found'
       });
     }
-    
-    // Vérifier que le nombre d'occupants ne dépasse pas la capacité
-    if (occupantIds.length > chambre.capacite) {
-      return res.status(400).json({
-        status: 'fail',
-        message: `La chambre ne peut pas accueillir plus de ${chambre.capacite} personnes`
+
+    // Make sure we're properly accessing the occupants array
+    const currentOccupantIds = [];
+    if (chambre.occupants && chambre.occupants.length > 0) {
+      chambre.occupants.forEach(occupantId => {
+        const idString = occupantId.toString();
+        currentOccupantIds.push(idString);
       });
     }
-    
-    // Mise à jour du statut de la chambre
-    chambre.statut = occupantIds.length > 0 ? 'occupée' : 'libre';
-    await chambre.save();
-    
-    // Retirer tous les occupants actuels de la chambre
-    await Stagiaire.updateMany(
-      { chambre: chambreId },
-      { $unset: { chambre: 1 } }
+
+    console.log("[assignOccupants] Current occupants:", currentOccupantIds);
+
+    // Convert the incoming occupantIds to strings for consistent comparison
+    const newOccupantIds = occupantIds ? occupantIds.map(id => id.toString()) : [];
+
+    // Find occupants being removed
+    const removedOccupantIds = currentOccupantIds.filter(id => 
+      !newOccupantIds.includes(id)
     );
+    console.log("[assignOccupants] Occupants being removed:", removedOccupantIds);
+
+    // Find occupants being added
+    const addedOccupantIds = newOccupantIds.filter(id => 
+      !currentOccupantIds.includes(id)
+    );
+    console.log("[assignOccupants] Occupants being added:", addedOccupantIds);
+
+    // 1. Clear chambreId for any stagiaires that are being removed
+    if (removedOccupantIds.length > 0) {
+      console.log(`[assignOccupants] Removing chamber association for ${removedOccupantIds.length} stagiaires`);
+      
+      try {
+        const updateResult = await Stagiaire.updateMany(
+          { _id: { $in: removedOccupantIds } },
+          { $unset: { chambreId: "" } }
+        );
+        console.log("[assignOccupants] Batch update result for removed occupants:", updateResult);
+      } catch (updateError) {
+        console.error("[assignOccupants] Error updating removed stagiaires:", updateError);
+      }
+    }
+
+    // 2. Update the room's occupants list
+    chambre.occupants = newOccupantIds;
     
-    // Assigner les nouveaux occupants si la liste n'est pas vide
-    if (occupantIds.length > 0) {
-      await Stagiaire.updateMany(
-        { _id: { $in: occupantIds } },
-        { chambre: chambreId }
-      );
+    // 3. Important: Update room status based on occupancy
+    if (newOccupantIds.length === 0) {
+      chambre.statut = 'libre';
+      console.log(`[assignOccupants] Room has no occupants, setting status to 'libre'`);
+    } else {
+      chambre.statut = 'occupée';
+      console.log(`[assignOccupants] Room has ${newOccupantIds.length} occupants, setting status to 'occupée'`);
     }
     
-    // Récupérer la chambre mise à jour avec les informations des occupants
-    const updatedChambre = await Chambre.findById(chambreId).populate('occupants');
-    
+    await chambre.save();
+    console.log(`[assignOccupants] Updated room status to: ${chambre.statut}`);
+
+    // 4. Set chambreId for newly added stagiaires
+    if (addedOccupantIds.length > 0) {
+      console.log(`[assignOccupants] Adding chamber association for ${addedOccupantIds.length} stagiaires`);
+      
+      try {
+        const updateResult = await Stagiaire.updateMany(
+          { _id: { $in: addedOccupantIds } },
+          { chambreId: id }
+        );
+        console.log("[assignOccupants] Batch update result for added stagiaires:", updateResult);
+      } catch (updateError) {
+        console.error("[assignOccupants] Error updating added stagiaires:", updateError);
+      }
+    }
+
+    // 5. Return success response with updated room information
     res.status(200).json({
       status: 'success',
-      data: updatedChambre
+      data: {
+        chambre,
+        addedCount: addedOccupantIds.length,
+        removedCount: removedOccupantIds.length,
+        roomStatus: chambre.statut
+      }
     });
   } catch (error) {
+    console.error('[assignOccupants] Error:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: 'An error occurred while assigning occupants'
     });
   }
 };
@@ -280,21 +343,161 @@ exports.assignOccupants = async (req, res) => {
 // Ajouter cette méthode à votre contrôleur
 exports.getChambreOccupants = async (req, res) => {
   try {
-    const chambreId = req.params.id;
+    const { id } = req.params;
+    console.log(`[getChambreOccupants] Fetching occupants for room: ${id}`);
     
-    // Trouver tous les stagiaires assignés à cette chambre
-    const occupants = await Stagiaire.find({ chambre: chambreId })
-      .select('_id firstName lastName phoneNumber email profilePhoto'); // Sélectionnez les champs pertinents
+    // Find the room
+    const chambre = await Chambre.findById(id);
+    if (!chambre) {
+      console.log(`[getChambreOccupants] Room ${id} not found`);
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Chambre non trouvée'
+      });
+    }
+    
+    // Get occupant IDs and log for debugging
+    const occupantIds = chambre.occupants || [];
+    console.log(`[getChambreOccupants] Room has ${occupantIds.length} occupants:`, occupantIds);
+    
+    if (occupantIds.length === 0) {
+      console.log(`[getChambreOccupants] No occupants for room ${id}`);
+      return res.status(200).json({
+        status: 'success',
+        data: []
+      });
+    }
+    
+    // Fetch occupant details
+    const occupants = await Stagiaire.find({
+      _id: { $in: occupantIds }
+    }).select('_id firstName lastName email phoneNumber profilePhoto');
+    
+    console.log(`[getChambreOccupants] Found ${occupants.length} occupants for room ${id}`);
     
     res.status(200).json({
       status: 'success',
-      results: occupants.length,
       data: occupants
     });
   } catch (error) {
+    console.error('[getChambreOccupants] Error:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: 'An error occurred while fetching occupants'
+    });
+  }
+};
+
+// Add this new endpoint to check occupant conflicts
+exports.checkOccupants = async (req, res) => {
+  try {
+    const { occupantIds } = req.body;
+    const roomId = req.params.id;
+    
+    // Find all chambers except the current one
+    const otherRooms = await Chambre.find({
+      _id: { $ne: roomId },
+      occupants: { $in: occupantIds }
+    });
+    
+    // Check which occupants are already assigned elsewhere
+    const conflicts = [];
+    
+    if (otherRooms.length > 0) {
+      // For each occupant, check if they're in another room
+      for (const occupantId of occupantIds) {
+        const conflictRoom = otherRooms.find(room => 
+          room.occupants && room.occupants.includes(occupantId)
+        );
+        
+        if (conflictRoom) {
+          conflicts.push({
+            occupantId,
+            roomId: conflictRoom._id,
+            roomNumber: conflictRoom.numero
+          });
+        }
+      }
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      conflicts,
+      hasConflicts: conflicts.length > 0
+    });
+  } catch (error) {
+    console.error('Error checking occupants:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Une erreur est survenue lors de la vérification des occupants'
+    });
+  }
+};
+
+exports.checkOccupantsAvailability = async (req, res) => {
+  try {
+    const { occupantIds } = req.body;
+    const roomId = req.params.id;
+    
+    // Find all chambers that have any of these occupants
+    const occupiedRooms = await Chambre.find({
+      _id: { $ne: roomId }, // Exclude current room
+      occupants: { $in: occupantIds }
+    }).select('_id numero occupants');
+    
+    // Check which stagiaires have chambreId set
+    const stagiairesWithRooms = await Stagiaire.find({
+      _id: { $in: occupantIds },
+      chambreId: { $exists: true, $ne: null, $ne: roomId }
+    }).select('_id firstName lastName chambreId');
+    
+    // Get full conflict info
+    const conflicts = [];
+    
+    // From room occupants list
+    for (const room of occupiedRooms) {
+      const conflictingOccupants = room.occupants.filter(
+        occupantId => occupantIds.includes(occupantId.toString())
+      );
+      
+      for (const occupantId of conflictingOccupants) {
+        // Check if this conflict is already recorded
+        if (!conflicts.some(c => c.occupantId === occupantId.toString())) {
+          conflicts.push({
+            occupantId: occupantId.toString(),
+            roomId: room._id.toString(),
+            roomNumber: room.numero
+          });
+        }
+      }
+    }
+    
+    // From stagiaire chambreId field
+    for (const stagiaire of stagiairesWithRooms) {
+      // Check if this conflict is already recorded
+      if (!conflicts.some(c => c.occupantId === stagiaire._id.toString())) {
+        // Get room info
+        const room = await Chambre.findById(stagiaire.chambreId);
+        
+        conflicts.push({
+          occupantId: stagiaire._id.toString(),
+          occupantName: `${stagiaire.firstName} ${stagiaire.lastName}`,
+          roomId: stagiaire.chambreId.toString(),
+          roomNumber: room ? room.numero : 'Unknown Room'
+        });
+      }
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      conflicts,
+      hasConflicts: conflicts.length > 0
+    });
+  } catch (error) {
+    console.error('Error checking occupants availability:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Une erreur est survenue lors de la vérification des occupants'
     });
   }
 };
