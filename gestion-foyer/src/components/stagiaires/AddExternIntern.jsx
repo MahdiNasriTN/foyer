@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createExternStagiaire, updateStagiaire } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) => {
   const fileInputRef = useRef(null);
@@ -8,6 +10,8 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
   const [animatePhoto, setAnimatePhoto] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
+  const permissions = usePermissions();
   
   const [formData, setFormData] = useState(initialData || {
     firstName: '',
@@ -23,6 +27,7 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
     email: '',
     phoneNumber: '',
     profilePhoto: null,
+    sexe: 'garcon', // Add gender field with default value
   });
 
   // Animation d'entrée pour la photo
@@ -125,6 +130,51 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
     }
   };
 
+  // Vérifications des permissions
+  if (!permissions.canCreate && !initialData) {
+    return (
+      <div className="bg-gradient-to-br from-white to-indigo-50/50 shadow-xl rounded-2xl p-8 max-w-full mx-auto my-4 w-[98%]">
+        <div className="text-center py-12">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.316 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Accès Restreint</h3>
+          <p className="text-gray-600">Vous n'avez pas les permissions nécessaires pour ajouter des stagiaires externes.</p>
+          <button
+            onClick={() => onCancel ? onCancel() : navigate('/stagiaires')}
+            className="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+          >
+            Retour
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!permissions.canEdit && initialData) {
+    return (
+      <div className="bg-gradient-to-br from-white to-indigo-50/50 shadow-xl rounded-2xl p-8 max-w-full mx-auto my-4 w-[98%]">
+        <div className="text-center py-12">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
+            <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.316 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Mode Lecture Seule</h3>
+          <p className="text-gray-600">Vous n'avez pas les permissions nécessaires pour modifier les stagiaires externes.</p>
+          <button
+            onClick={() => onCancel ? onCancel() : navigate('/stagiaires')}
+            className="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+          >
+            Retour
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Updated styling classes with new premium color scheme
   const inputClass = "mt-1 block w-full px-4 py-3 rounded-lg border-2 border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none transition-all duration-200 ease-in-out";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
@@ -133,6 +183,32 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
 
   return (
     <div className="bg-gradient-to-br from-white to-indigo-50/50 shadow-xl rounded-2xl p-8 max-w-full mx-auto my-4 w-[98%]">
+      {/* Back Button - Add this at the top */}
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={() => {
+            if (onCancel) {
+              onCancel(); // Use the onCancel prop if provided
+            } else {
+              navigate('/stagiaires'); // Fallback to navigation
+            }
+          }}
+          className="group inline-flex items-center px-4 py-2 bg-white hover:bg-indigo-50 text-indigo-700 font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-indigo-200"
+        >
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            className="h-5 w-5 mr-2 group-hover:-translate-x-1 transition-transform duration-200" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Retour aux stagiaires
+        </button>
+      </div>
+
       <h2 className="text-4xl font-bold text-indigo-900 mb-10 text-center flex items-center justify-center">
         <span className="bg-indigo-100 p-3 rounded-full mr-4 shadow-inner">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-indigo-600">
@@ -140,7 +216,7 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
           </svg>
         </span>
         <span className="bg-gradient-to-r from-indigo-700 to-purple-700 text-transparent bg-clip-text">
-          Ajouter un Stagiaire Externe
+          {isEditing ? 'Modifier un Stagiaire Externe' : 'Ajouter un Stagiaire Externe'}
         </span>
       </h2>
       
@@ -336,6 +412,22 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
               />
             </div>
             <div>
+              <label htmlFor="sexe" className={labelClass}>
+                Genre *
+              </label>
+              <select
+                id="sexe"
+                name="sexe"
+                value={formData.sexe}
+                onChange={handleChange}
+                required
+                className={inputClass}
+              >
+                <option value="garcon">👦 Garçon</option>
+                <option value="fille">👧 Fille</option>
+              </select>
+            </div>
+            <div>
               <label htmlFor="cinNumber" className={labelClass}>
                 Numéro CIN
               </label>
@@ -499,13 +591,25 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
         <div className="flex justify-between items-center pt-6 border-t-2 border-indigo-100">
           <button
             type="button"
-            onClick={onCancel}
-            className="group px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all flex items-center shadow-sm hover:shadow-md"
+            onClick={() => {
+              if (onCancel) {
+                onCancel(); // Use the onCancel prop if provided
+              } else {
+                navigate('/stagiaires'); // Fallback to navigation
+              }
+            }}
+            className="group inline-flex items-center px-4 py-2 bg-white hover:bg-indigo-50 text-indigo-700 font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-indigo-200"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              className="h-5 w-5 mr-2 group-hover:-translate-x-1 transition-transform duration-200" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Annuler
+            Retour aux stagiaires
           </button>
           
           <button

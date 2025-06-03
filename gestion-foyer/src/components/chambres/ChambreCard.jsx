@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 // Remplacer les icônes de react-icons/bi par les heroicons
 import { UserIcon, HomeIcon } from '@heroicons/react/outline';
 import { fetchChambreOccupants } from '../../services/api';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const ChambreCard = ({ chambre, onAssign, onEdit, onDelete, refreshTrigger }) => {
+  const permissions = usePermissions();
   const [occupants, setOccupants] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   // Utiliser une référence pour suivre si les occupants ont déjà été chargés
@@ -135,26 +137,41 @@ const ChambreCard = ({ chambre, onAssign, onEdit, onDelete, refreshTrigger }) =>
           )}
         </div>
 
-        {/* Actions sur la chambre */}
+        {/* Actions sur la chambre - Updated with permissions */}
         <div className="mt-5 pt-4 border-t border-gray-100 flex justify-end space-x-2">
-          <button
-            onClick={() => onAssign(chambre)}
-            className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100"
-          >
-            Assigner
-          </button>
-          <button
-            onClick={() => onEdit(chambre)}
-            className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-          >
-            Modifier
-          </button>
-          <button
-            onClick={() => onDelete(chambre)} // Passer la chambre entière au lieu de chambre.id
-            className="px-3 py-1 text-xs font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100"
-          >
-            Supprimer
-          </button>
+          {/* View/Manage button - always available */}
+          {/* Assign button - only show if user can assign (superadmin only) */}
+          {permissions.superadmin && (
+            <button
+              onClick={() => onAssign(chambre)}
+              className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100"
+              title="Gérer les occupants"
+            >
+              Assigner
+            </button>
+          )}
+          
+          {/* Edit button - only show if user can edit */}
+          {permissions.canEdit && (
+            <button
+              onClick={() => onEdit(chambre)}
+              className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              title="Modifier"
+            >
+              Modifier
+            </button>
+          )}
+          
+          {/* Delete button - only show if user can delete */}
+          {permissions.canDelete && (
+            <button
+              onClick={() => onDelete(chambre)}
+              className="px-3 py-1 text-xs font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100"
+              title="Supprimer"
+            >
+              Supprimer
+            </button>
+          )}
         </div>
       </div>
     </div>

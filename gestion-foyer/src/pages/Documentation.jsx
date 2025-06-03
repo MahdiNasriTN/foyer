@@ -78,11 +78,9 @@ const Documentation = () => {
 
   // Afficher la section de contenu correspondante
   const renderContent = () => {
-    console.log("Section ID actuel:", sectionId); // Log pour debug
     
     // Normaliser l'ID (enlever les accents)
     const normalizedId = sectionId?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    console.log("ID normalisé:", normalizedId); // Log pour debug
     
     switch (normalizedId) {
       case 'commencer':
@@ -104,7 +102,6 @@ const Documentation = () => {
       case 'support':
         return <Support colorMode={colorMode} />;
       default:
-        console.log("Section non reconnue, affichage de Introduction");
         return <Introduction colorMode={colorMode} />;
     }
   };
@@ -157,7 +154,7 @@ const Documentation = () => {
                   {activeSectionData.title}
                 </h1>
               </div>
-              {/* <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2">
                 <a 
                   href={`https://github.com/yourusername/ges_foyer/edit/main/docs/${activeSection}.md`}
                   target="_blank"
@@ -171,7 +168,7 @@ const Documentation = () => {
                   </svg>
                   Modifier cette page
                 </a>
-              </div> */}
+              </div>
             </div>
           </div>
 

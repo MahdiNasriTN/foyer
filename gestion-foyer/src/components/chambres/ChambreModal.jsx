@@ -14,8 +14,28 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
     etage: 1,
     equipements: [],
     occupants: [],
-    statut: 'libre'
+    statut: 'libre',
+    gender: 'garcon'
   });
+  
+  // Function to determine floor based on room number
+  const getFloorFromRoomNumber = (roomNumber) => {
+    if (!roomNumber) return 1;
+    
+    // Extract numeric part from room number (handle formats like "A-101", "101", etc.)
+    const numericPart = roomNumber.replace(/[^0-9]/g, '');
+    const number = parseInt(numericPart);
+    
+    if (isNaN(number)) return 1;
+    
+    if (number >= 100 && number <= 199) return 1;
+    if (number >= 200 && number <= 299) return 2;
+    if (number >= 300 && number <= 399) return 3;
+    if (number >= 400 && number <= 499) return 4;
+    
+    // Default to floor 1 for any other numbers
+    return 1;
+  };
   
   useEffect(() => {
     if (chambre) {
@@ -24,26 +44,60 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
         numero: chambre.numero || '',
         capacite: chambre.capacite || 1,
         nombreLits: chambre.nombreLits || chambre.capacite || 1,
-        etage: chambre.etage || 1,
+        etage: chambre.etage || getFloorFromRoomNumber(chambre.numero) || 1,
         equipements: chambre.equipements || [],
         occupants: chambre.occupants || [],
-        statut: chambre.statut || 'libre'
+        statut: chambre.statut || 'libre',
+        gender: chambre.gender || 'garcon'
+      });
+    } else {
+      // Reset form for new chambre
+      setFormData({
+        id: '',
+        numero: '',
+        capacite: 1,
+        nombreLits: 1,
+        etage: 1,
+        equipements: [],
+        occupants: [],
+        statut: 'libre',
+        gender: 'garcon'
       });
     }
   }, [chambre]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
+    
+    if (name === 'numero') {
+      // Auto-calculate floor when room number changes
+      const newFloor = getFloorFromRoomNumber(value);
+      setFormData({
+        ...formData,
+        [name]: value,
+        etage: newFloor
+      });
+    } else if (name === 'capacite') {
+      // Auto-sync number of beds with capacity
+      setFormData({
+        ...formData,
+        [name]: parseInt(value),
+        nombreLits: parseInt(value) // Sync beds with capacity
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+    }
   };
   
   const handleCapaciteChange = (delta) => {
+    const newCapacity = Math.max(1, formData.capacite + delta);
     setFormData(prev => ({
       ...prev,
-      capacite: Math.max(1, prev.capacite + delta)
+      capacite: newCapacity,
+      nombreLits: newCapacity // Auto-sync beds with capacity
     }));
   };
   
@@ -77,6 +131,8 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
       ...formData,
       equipements: formData.equipements,
       statut: formData.statut === 'occupée' ? 'occupee' : 'disponible',
+      gender: formData.gender,
+      etage: formData.etage // Ensure floor is included
     };
     
     onSave(submitData);
@@ -127,26 +183,32 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
                   value={formData.numero}
                   onChange={handleChange}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                  placeholder="Ex: A-101"
+                  placeholder="Ex: 101, 205, 303"
                 />
               </div>
               
               <div>
                 <label htmlFor="etage" className="block text-sm font-medium text-gray-700">
-                  Étage
+                  Étage (Auto-calculé)
                 </label>
-                <select
-                  id="etage"
-                  name="etage"
-                  value={formData.etage}
-                  onChange={handleChange}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                >
-                  <option value={1}>Étage 1</option>
-                  <option value={2}>Étage 2</option>
-                  <option value={3}>Étage 3</option>
-                  <option value={4}>Étage 4</option>
-                </select>
+                <div className="mt-1 relative">
+                  <input
+                    type="number"
+                    name="etage"
+                    id="etage"
+                    value={formData.etage}
+                    readOnly
+                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 bg-gray-50 cursor-not-allowed focus:outline-none sm:text-sm rounded-md"
+                  />
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                    <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Étage déterminé automatiquement par le numéro de chambre
+                </p>
               </div>
             </div>
             
@@ -186,36 +248,62 @@ const ChambreModal = ({ isOpen, onClose, chambre, onSave }) => {
               
               <div>
                 <label htmlFor="nombreLits" className="block text-sm font-medium text-gray-700">
-                  Nombre de lits
+                  Nombre de lits (Auto-synchronisé)
                 </label>
-                <div className="mt-1 flex rounded-md shadow-sm">
-                  <button
-                    type="button"
-                    className="relative inline-flex items-center px-3 py-2 rounded-l-md border border-gray-300 bg-gray-50 text-sm font-medium text-gray-500 hover:bg-gray-100"
-                    onClick={() => handleNombreLitsChange(-1)}
-                  >
-                    <MinusSmIcon className="h-5 w-5" />
-                  </button>
+                <div className="mt-1 relative">
                   <input
                     type="number"
                     name="nombreLits"
                     id="nombreLits"
-                    min="1"
-                    max="10"
                     value={formData.nombreLits}
-                    onChange={handleChange}
-                    className="flex-1 min-w-0 block w-full px-3 py-2 border border-l-0 border-r-0 border-gray-300 text-center sm:text-sm"
                     readOnly
+                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 bg-gray-50 cursor-not-allowed focus:outline-none sm:text-sm rounded-md"
                   />
-                  <button
-                    type="button"
-                    className="relative inline-flex items-center px-3 py-2 rounded-r-md border border-gray-300 bg-gray-50 text-sm font-medium text-gray-500 hover:bg-gray-100"
-                    onClick={() => handleNombreLitsChange(1)}
-                  >
-                    <PlusSmIcon className="h-5 w-5" />
-                  </button>
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                    <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
                 </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Nombre de lits = capacité de la chambre
+                </p>
               </div>
+            </div>
+
+            {/* Gender Selection */}
+            <div>
+              <label htmlFor="gender" className="block text-sm font-medium text-gray-700">
+                Genre de chambre *
+              </label>
+              <select
+                id="gender"
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+              >
+                <option value="garcon">👦 Garçons</option>
+                <option value="fille">👧 Filles</option>
+              </select>
+              
+              {/* Warning for occupied rooms when changing gender */}
+              {formData.id && formData.occupants && formData.occupants.length > 0 && (
+                <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-4 w-4 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-2">
+                      <p className="text-xs text-yellow-700">
+                        ⚠️ Cette chambre a {formData.occupants.length} occupant(s). Changer le genre pourrait affecter les assignations actuelles.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div>

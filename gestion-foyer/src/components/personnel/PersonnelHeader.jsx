@@ -1,3 +1,4 @@
+// filepath: c:\Users\MahdiNasri\Desktop\ges_foyer\ges_foyer\src\components\personnel\PersonnelHeader.jsx
 import React from 'react';
 import { 
   SearchIcon, 
@@ -6,6 +7,7 @@ import {
   ViewGridIcon,
   ChartPieIcon
 } from '@heroicons/react/outline';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const PersonnelHeader = ({ 
   searchTerm, 
@@ -17,6 +19,8 @@ const PersonnelHeader = ({
   onAddNew,
   totalCount
 }) => {
+  const permissions = usePermissions();
+
   return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
       <div className="flex items-center">
@@ -39,6 +43,7 @@ const PersonnelHeader = ({
         </div>
         
         <div className="flex items-center gap-2">
+          {/* View mode toggles - always available */}
           <button 
             onClick={() => onViewModeChange('list')}
             className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
@@ -59,13 +64,16 @@ const PersonnelHeader = ({
           </button>
         </div>
         
-        <button 
-          onClick={onAddNew}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-        >
-          <PlusIcon className="h-5 w-5" />
-          <span>Ajouter</span>
-        </button>
+        {/* Add button - only show if user can create */}
+        {permissions.canCreate && (
+          <button 
+            onClick={onAddNew}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            <PlusIcon className="h-5 w-5" />
+            <span>Ajouter</span>
+          </button>
+        )}
       </div>
     </div>
   );

@@ -265,13 +265,6 @@ const Login = ({ onLogin }) => {
               </button>
             </div>
           </form>
-          
-          <div className="border-t border-gray-200 pt-6 mt-10">
-            <div className="text-sm text-center text-gray-500">
-              <p>Pour la démonstration, laissez les champs vides et cliquez sur "Se connecter"</p>
-              <p className="text-gray-400 mt-3 text-xs">(Cette instruction est à supprimer en production)</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

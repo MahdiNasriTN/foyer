@@ -33,7 +33,6 @@ export const updateAdmin = async (id, adminData) => {
     const { confirmPassword, ...dataToSend } = adminData;
     
     // Log what we're sending to the API
-    console.log(`Updating admin ${id} with data:`, dataToSend);
     
     // Make sure role is explicitly included
     if (!dataToSend.role) {
@@ -47,7 +46,6 @@ export const updateAdmin = async (id, adminData) => {
     );
     
     // Log the response from the API
-    console.log(`Update response for admin ${id}:`, response.data);
     
     return response.data;
   } catch (error) {

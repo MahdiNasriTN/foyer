@@ -21,16 +21,23 @@ axiosInstance.interceptors.request.use(
 );
 
 // Récupérer tous les membres du personnel
+// Update the getAllPersonnel function:
+
 export const getAllPersonnel = async (filters = {}) => {
   try {
     const params = new URLSearchParams();
+    console.log('Service received filters:', filters);
     
-    // Ajouter les filtres à la requête
+    // Only add filters that have actual values
     Object.keys(filters).forEach(key => {
-      if (filters[key] && filters[key] !== 'all') {
-        params.append(key, filters[key]);
+      const value = filters[key];
+      if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+        params.append(key, value);
+        console.log(`Adding filter ${key}:`, value);
       }
     });
+    
+    console.log('Final URL params:', params.toString());
     
     const response = await axiosInstance.get(`/api/v1/personnel?${params.toString()}`);
     return response.data;

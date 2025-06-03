@@ -50,15 +50,11 @@ export const login = async (credentials) => {
     let response;
     try {
       response = await API.post('/api/v1/auth/login', credentials);
-      console.log('First attempt succeeded');
-      console.log('Login response:', response);
     } catch (apiError) {
       console.error('First attempt failed:', apiError);
       throw new Error(apiError.response?.data.message || apiError);
     }
 
-    console.log('Login response:', response);
-    console.log('Login response:', response.data);
     
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
@@ -127,9 +123,15 @@ export const fetchStagiaires = async (filters = {}) => {
       queryParams.append('endDate', filters.endDate);
     }
     
+    // ADD THIS: Payment status filter
+    if (filters.paymentStatus && filters.paymentStatus !== '') {
+      queryParams.append('paymentStatus', filters.paymentStatus);
+    }
+    
     // Construction de l'URL avec les paramètres de requête
     const queryString = queryParams.toString();
     const url = `/api/v1/stagiaires${queryString ? `?${queryString}` : ''}`;
+    
     
     const response = await API.get(url);
     return response;
@@ -243,7 +245,6 @@ export const fetchChambreOccupants = async (chambreId, signal) => {
   } catch (error) {
     // Vérifier si l'erreur est due à une annulation
     if (axios.isCancel(error)) {
-      console.log('Requête annulée:', error.message);
       // Propager l'erreur pour qu'elle soit gérée par le composant
       const abortError = new Error('Request aborted');
       abortError.name = 'AbortError';
@@ -253,8 +254,6 @@ export const fetchChambreOccupants = async (chambreId, signal) => {
     throw error.response?.data || error;
   }
 };
-
-// Ajouter ces fonctions à votre fichier api.js existant
 
 // Récupérer toutes les chambres avec filtres optionnels
 export const fetchChambres = async (filters = {}) => {
@@ -278,12 +277,11 @@ export const fetchChambres = async (filters = {}) => {
     if (filters.search) params.append('search', filters.search);
     if (filters.sortBy) params.append('sortBy', filters.sortBy);
     if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
+    if (filters.gender) params.append('gender', filters.gender);
     
     const url = `/api/v1/chambres${params.toString() ? '?' + params.toString() : ''}`;
-    console.log('Fetching chambres with URL:', url);
     
     const response = await API.get(url);
-    console.log('Chambres fetched successfully:', response.data);
     return response.data;
   } catch (error) {
     console.error('Error fetching chambres:', error);
@@ -338,101 +336,96 @@ export const deleteChambre = async (id) => {
 // Assigner des occupants à une chambre
 export const assignOccupantsToRoom = async (roomId, occupantIds) => {
   try {
-    console.log(`Assigning occupants to room ${roomId}:`, occupantIds);
     
-    // Make sure occupantIds is an array of strings
     const sanitizedOccupantIds = occupantIds.map(id => 
       typeof id === 'object' && id._id ? id._id : String(id)
     );
     
-    console.log("Sanitized occupantIds:", sanitizedOccupantIds);
     
     const response = await API.post(`/api/v1/chambres/${roomId}/assign`, {
       occupantIds: sanitizedOccupantIds
     });
     
-    console.log("Assignment response:", response.data);
     return response.data;
   } catch (error) {
     console.error("Error in assignOccupantsToRoom:", error);
-    throw error;
+    
+    // Check if we have a response with error details
+    if (error.response?.data) {
+      const errorData = error.response.data;
+      
+      // If backend returns specific error message, throw it directly
+      if (errorData.message) {
+        const backendError = new Error(errorData.message);
+        backendError.response = error.response;
+        throw backendError;
+      }
+      
+      // Handle validation errors specifically with user-friendly messages
+      if (errorData.status === 'fail') {
+        const backendError = new Error(errorData.message || 'Erreur de validation');
+        backendError.response = error.response;
+        throw backendError;
+      }
+    }
+    
+    // Fallback error handling for network issues
+    if (error.response?.status === 400) {
+      throw new Error('Données invalides. Veuillez vérifier votre sélection.');
+    } else if (error.response?.status === 404) {
+      throw new Error('Chambre ou stagiaire non trouvé.');
+    } else if (error.response?.status >= 500) {
+      throw new Error('Erreur serveur. Veuillez réessayer plus tard.');
+    } else if (!error.response) {
+      throw new Error('Erreur de connexion. Vérifiez votre connexion internet.');
+    }
+    
+    // Default fallback
+    throw new Error('Erreur lors de l\'assignation des occupants');
   }
 };
 
-// Add these export functions to your API service
-
-// Export multiple stagiaires with optional filtering and limit
-// Export multiple stagiaires with optional filtering and limit
-export const exportStagiaires = async (params = {}) => {
+// Get available stagiaires for a specific room
+export const getAvailableStagiairesForRoom = async (roomId) => {
   try {
-    console.log('Export parameters:', params);
-    // Build query parameters
-    let queryParams = new URLSearchParams();
-    
-    // Add all filter parameters
-    if (params.status && params.status !== 'all') queryParams.append('status', params.status);
-    if (params.room && params.room !== 'all') queryParams.append('room', params.room);
-    if (params.gender && params.gender !== 'all') queryParams.append('gender', params.gender);
-    if (params.session && params.session !== 'all') queryParams.append('session', params.session);
-    if (params.year && params.year !== 'all') queryParams.append('year', params.year);
-    if (params.startDate) queryParams.append('startDate', params.startDate);
-    if (params.endDate) queryParams.append('endDate', params.endDate);
-    if (params.specificRoom) queryParams.append('specificRoom', params.specificRoom);
-    if (params.search) queryParams.append('search', params.search);
-    
-    // Add export specific parameters
-    if (params.limit && params.limit !== 'all') queryParams.append('limit', params.limit);
-    if (params.format) queryParams.append('format', params.format);
-    
-    // Create URL with query parameters
-    const queryString = queryParams.toString();
-    const url = `/api/v1/stagiaires/export${queryString ? `?${queryString}` : ''}`;
-    
-    console.log('Export URL:', API.defaults.baseURL + url);
-    
-    // Make the request with responseType blob to handle binary data
-    const response = await API.get(url, { responseType: 'blob' });
-    return response;
-  } catch (error) {
-    console.error('Error exporting stagiaires:', error);
-    throw error.response?.data || error;
-  }
-};
-
-// Export a single stagiaire by ID
-export const exportStagiaire = async (id, format = 'xlsx') => {
-  console.log('Exporting stagiaire with ID:', id);
-  try {
-    const url = `/api/v1/stagiaires/${id}/export?format=${format}`;
-    
-    console.log('Single export URL:', API.defaults.baseURL + url);
-    
-    // Make the request with responseType blob to handle binary data
-    const response = await API.get(url, { responseType: 'blob' });
-    return response;
-  } catch (error) {
-    console.error(`Error exporting stagiaire ${id}:`, error);
-    throw error.response?.data || error;
-  }
-};
-
-// Add these functions to your existing API service file
-
-// Update personnel schedule
-export const updatePersonnelSchedule = async (personnelId, scheduleData) => {
-  try {
-    const response = await API.put(`/api/v1/personnel/${personnelId}/schedule`, { schedule: scheduleData });
+    const response = await API.get(`/api/v1/chambres/${roomId}/available-stagiaires`);
     return response.data;
   } catch (error) {
-    console.error('Error updating personnel schedule:', error);
+    console.error('Error fetching available stagiaires for room:', error);
     throw error.response?.data || error;
   }
 };
 
-// Get personnel schedule
-export const getPersonnelSchedule = async (personnelId) => {
+// Get room statistics
+export const getRoomStatistics = async () => {
   try {
-    const response = await API.get(`/api/v1/personnel/${personnelId}/schedule`);
+    const response = await API.get('/api/v1/chambres/statistics');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching room statistics:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// MISSING FUNCTION 1: fetchAllOccupiedRooms
+export const fetchAllOccupiedRooms = async () => {
+  try {
+    const response = await API.get('/api/v1/chambres?status=occupied');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching occupied rooms:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// MISSING FUNCTION 2: Personnel Schedule functions
+export const getPersonnelSchedule = async (personnelId, date) => {
+  try {
+    const params = new URLSearchParams();
+    if (date) params.append('date', date);
+    
+    const url = `/api/v1/personnel/${personnelId}/schedule${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await API.get(url);
     return response.data;
   } catch (error) {
     console.error('Error fetching personnel schedule:', error);
@@ -440,13 +433,190 @@ export const getPersonnelSchedule = async (personnelId) => {
   }
 };
 
-// Add this new function to fetch all occupied rooms
-export const fetchAllOccupiedRooms = async () => {
+export const updatePersonnelSchedule = async (personnelId, scheduleData) => {
   try {
-    const response = await API.get('/api/v1/chambres?status=occupée');
+    const response = await API.put(`/api/v1/personnel/${personnelId}/schedule`, scheduleData);
     return response.data;
   } catch (error) {
-    console.error('Error fetching occupied rooms:', error);
-    throw error;
+    console.error('Error updating personnel schedule:', error);
+    throw error.response?.data || error;
   }
 };
+
+// MISSING FUNCTION 3: Export functions
+export const exportStagiaires = async (filters = {}) => {
+  try {
+    // Build query parameters from filters
+    const params = new URLSearchParams();
+    
+    Object.keys(filters).forEach(key => {
+      if (filters[key] && filters[key] !== 'all' && filters[key] !== '') {
+        params.append(key, filters[key]);
+      }
+    });
+    
+    const url = `/api/v1/stagiaires/export${params.toString() ? '?' + params.toString() : ''}`;
+    
+    const response = await API.get(url, {
+      responseType: 'blob' // Important for file downloads
+    });
+    
+    // Create blob link to download
+    const blob = new Blob([response.data], { 
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    });
+    
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    
+    // Get filename from response headers if available
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = 'stagiaires_export.xlsx';
+    
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+    
+    return { success: true, message: 'Export completed successfully' };
+  } catch (error) {
+    console.error('Error exporting stagiaires:', error);
+    throw error.response?.data || error;
+  }
+};
+
+export const exportStagiaire = async (stagiaireId) => {
+  try {
+    const response = await API.get(`/api/v1/stagiaires/${stagiaireId}/export`, {
+      responseType: 'blob' // Important for file downloads
+    });
+    
+    // Create blob link to download
+    const blob = new Blob([response.data], { 
+      type: 'application/pdf' // Assuming single stagiaire export is PDF
+    });
+    
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    
+    // Get filename from response headers if available
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `stagiaire_${stagiaireId}.pdf`;
+    
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+    
+    return { success: true, message: 'Export completed successfully' };
+  } catch (error) {
+    console.error('Error exporting stagiaire:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// BONUS: Additional useful functions that might be needed
+
+// Check occupants availability for room assignment
+export const checkOccupantsAvailability = async (roomId, occupantIds) => {
+  try {
+    const response = await API.post(`/api/v1/chambres/${roomId}/check-availability`, {
+      occupantIds
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error checking occupants availability:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// Get all personnel (if needed for schedules)
+export const fetchPersonnel = async () => {
+  try {
+    const response = await API.get('/api/v1/personnel');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching personnel:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// Create personnel (if needed)
+export const createPersonnel = async (personnelData) => {
+  try {
+    const response = await API.post('/api/v1/personnel', personnelData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating personnel:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// Update personnel
+export const updatePersonnel = async (id, personnelData) => {
+  try {
+    const response = await API.put(`/api/v1/personnel/${id}`, personnelData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating personnel:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// Delete personnel
+export const deletePersonnel = async (id) => {
+  try {
+    const response = await API.delete(`/api/v1/personnel/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting personnel:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// Upload stagiaire profile photo
+export const uploadStagiairePhoto = async (stagiaireId, formData) => {
+  try {
+    const response = await API.post(`/api/v1/stagiaires/${stagiaireId}/upload-photo`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error uploading stagiaire photo:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// Update stagiaire payment info
+export const updateStagiairePayment = async (stagiaireId, paymentData) => {
+  try {
+    const response = await API.put(`/api/v1/stagiaires/${stagiaireId}/payment`, paymentData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating stagiaire payment:', error);
+    throw error.response?.data || error;
+  }
+};
+
+// Default export for the API instance
+export default API;

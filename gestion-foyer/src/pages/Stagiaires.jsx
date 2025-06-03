@@ -4,6 +4,7 @@ import { fetchStagiaires, deleteStagiaire, createInternStagiaire, createExternSt
 import { mockChambres, mockStagiaires } from '../utils/mockData'; // Garder les chambres mockées pour le moment
 import { saveAs } from 'file-saver';
 import axios from 'axios'; // Make sure this is imported
+import { usePermissions } from '../hooks/usePermissions';
 
 // Importation des composants
 import StagiairesList from '../components/stagiaires/StagiairesList';
@@ -631,98 +632,100 @@ const Stagiaires = () => {
   const handleSearchChange = (value) => {
     // Update local search term immediately for UI feedback
     setSearchTerm(value);
-    
+
     // Call the debounced search function which will make the API request
     // after the specified delay (1 second)
     debouncedSearch(value);
   };
 
   useEffect(() => {
-  return () => {
-    if (window.searchTimeout) {
-      clearTimeout(window.searchTimeout);
-    }
-  };
-}, []);
+    return () => {
+      if (window.searchTimeout) {
+        clearTimeout(window.searchTimeout);
+      }
+    };
+  }, []);
 
   // Handle the export of multiple stagiaires
-// Update the handleExport function to use your API service
-const handleExport = async (count) => {
-  setLoading(true);
-  try {
-    // Prepare export parameters
-    const exportParams = {
-      ...filters,
-      limit: count === 'all' ? undefined : count,
-      format: 'xlsx'
-    };
-    
-    // Call the exportStagiaires API function
-    const response = await exportStagiaires(exportParams);
-    
-    // Create a file name with current date
-    const date = new Date().toISOString().split('T')[0];
-    const fileName = `stagiaires_export_${date}.xlsx`;
-    
-    // Save the blob as a file
-    saveAs(new Blob([response.data]), fileName);
-    
-    // Show success notification
-    setNotification({
-      show: true,
-      message: `Export de ${count === 'all' ? 'tous les' : count} stagiaires réussi`,
-      type: 'success'
-    });
-    
-    setTimeout(() => {
-      setNotification({ show: false, message: '', type: '' });
-    }, 3000);
-  } catch (err) {
-    console.error("Erreur lors de l'export:", err);
-    setNotification({
-      show: true,
-      message: "Erreur lors de l'export: " + (err.message || "Une erreur s'est produite"),
-      type: 'error'
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+  // Update the handleExport function to use your API service
+  const handleExport = async (count) => {
+    setLoading(true);
+    try {
+      // Prepare export parameters
+      const exportParams = {
+        ...filters,
+        limit: count === 'all' ? undefined : count,
+        format: 'xlsx'
+      };
 
-// Update the handleExportSingle function to use your API service
-const handleExportSingle = async (stagiaire) => {
-  setLoading(true);
-  try {
-    // Call the exportStagiaire API function
-    const response = await exportStagiaire(stagiaire._id);
-    
-    // Create a file name with stagiaire name and ID
-    const fileName = `stagiaire_${stagiaire.firstName}_${stagiaire.lastName}_${stagiaire._id}.xlsx`;
-    
-    // Save the blob as a file
-    saveAs(new Blob([response.data]), fileName);
-    
-    // Show success notification
-    setNotification({
-      show: true,
-      message: `Export du stagiaire ${stagiaire.firstName} ${stagiaire.lastName} réussi`,
-      type: 'success'
-    });
-    
-    setTimeout(() => {
-      setNotification({ show: false, message: '', type: '' });
-    }, 3000);
-  } catch (err) {
-    console.error("Erreur lors de l'export:", err);
-    setNotification({
-      show: true,
-      message: "Erreur lors de l'export: " + (err.message || "Une erreur s'est produite"),
-      type: 'error'
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+      // Call the exportStagiaires API function
+      const response = await exportStagiaires(exportParams);
+
+      // Create a file name with current date
+      const date = new Date().toISOString().split('T')[0];
+      const fileName = `stagiaires_export_${date}.xlsx`;
+
+      // Save the blob as a file
+      saveAs(new Blob([response.data]), fileName);
+
+      // Show success notification
+      setNotification({
+        show: true,
+        message: `Export de ${count === 'all' ? 'tous les' : count} stagiaires réussi`,
+        type: 'success'
+      });
+
+      setTimeout(() => {
+        setNotification({ show: false, message: '', type: '' });
+      }, 3000);
+    } catch (err) {
+      console.error("Erreur lors de l'export:", err);
+      setNotification({
+        show: true,
+        message: "Erreur lors de l'export: " + (err.message || "Une erreur s'est produite"),
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update the handleExportSingle function to use your API service
+  const handleExportSingle = async (stagiaire) => {
+    setLoading(true);
+    try {
+      // Call the exportStagiaire API function
+      const response = await exportStagiaire(stagiaire._id);
+
+      // Create a file name with stagiaire name and ID
+      const fileName = `stagiaire_${stagiaire.firstName}_${stagiaire.lastName}_${stagiaire._id}.xlsx`;
+
+      // Save the blob as a file
+      saveAs(new Blob([response.data]), fileName);
+
+      // Show success notification
+      setNotification({
+        show: true,
+        message: `Export du stagiaire ${stagiaire.firstName} ${stagiaire.lastName} réussi`,
+        type: 'success'
+      });
+
+      setTimeout(() => {
+        setNotification({ show: false, message: '', type: '' });
+      }, 3000);
+    } catch (err) {
+      console.error("Erreur lors de l'export:", err);
+      setNotification({
+        show: true,
+        message: "Erreur lors de l'export: " + (err.message || "Une erreur s'est produite"),
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const permissions = usePermissions();
 
   return (
     <div className="space-y-6">
@@ -773,15 +776,15 @@ const handleExportSingle = async (stagiaire) => {
         <>
           <StagiaireHeader
             searchTerm={searchTerm}
-            onSearchChange={handleSearchChange} // Use the new handler instead of setSearchTerm directly
+            onSearchChange={handleSearchChange}
             onToggleStats={() => setIsStatsOpen(!isStatsOpen)}
             isStatsOpen={isStatsOpen}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
-            onAddNew={handleAddIntern}
-            onAddExtern={handleAddExtern}
+            onAddNew={permissions.canCreate ? handleAddIntern : null} // Pass null instead of undefined
+            onAddExtern={permissions.canCreate ? handleAddExtern : null} // Pass null instead of undefined
             totalCount={stagiaires.length}
-            onExport={handleExport} // Add this prop
+            onExport={handleExport}
           />
 
           {isStatsOpen && (
@@ -797,8 +800,8 @@ const handleExportSingle = async (stagiaire) => {
             sortBy={sortBy}
             sortOrder={sortOrder}
             onView={handleViewProfile}
-            onEdit={handleEdit}
-            onDelete={handleDeleteStagiaire}
+            onEdit={permissions.canEdit ? handleEdit : null} // Pass null instead of undefined
+            onDelete={permissions.canDelete ? handleDeleteStagiaire : null} // Pass null instead of undefined
             onSort={toggleSort}
             onChangePage={setCurrentPage}
             selectedFilter={selectedFilter}
@@ -809,7 +812,7 @@ const handleExportSingle = async (stagiaire) => {
             onResetFilters={handleResetFilters}
             getDisplayableChambre={getDisplayableChambre}
             onExportSingle={handleExportSingle}
-            onExport={handleExport} // Add this prop
+            onExport={handleExport}
           />
         </>
       )}
@@ -827,8 +830,8 @@ const handleExportSingle = async (stagiaire) => {
       {/* Notifications */}
       {notification.show && (
         <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 transition-all duration-500 ease-in-out ${notification.type === 'success' ? 'bg-green-100 text-green-800 border-l-4 border-green-500' :
-            notification.type === 'error' ? 'bg-red-100 text-red-800 border-l-4 border-red-500' :
-              'bg-blue-100 text-blue-800 border-l-4 border-blue-500'
+          notification.type === 'error' ? 'bg-red-100 text-red-800 border-l-4 border-red-500' :
+            'bg-blue-100 text-blue-800 border-l-4 border-blue-500'
           }`}>
           <div className="flex items-center">
             {notification.type === 'success' && (

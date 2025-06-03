@@ -25,13 +25,11 @@ const AssignModal = ({ isOpen, onClose, chambre, onAssign }) => {
           const occupants = occupantsResponse?.data || [];
           setCurrentOccupants(occupants);
           
-          console.log("Current occupants loaded:", occupants);
           
           // Présélectionner les occupants actuels - make sure to convert to string IDs
           const occupantIds = occupants.map(o => o._id).filter(Boolean);
           setSelectedOccupantIds(occupantIds);
           
-          console.log("Pre-selected occupant IDs:", occupantIds);
           
           // 2. Charger tous les stagiaires (y compris ceux assignés à d'autres chambres)
           const stagiaireResponse = await fetchAvailableStagiaires();
@@ -109,14 +107,12 @@ const AssignModal = ({ isOpen, onClose, chambre, onAssign }) => {
   // Gérer la sélection/désélection d'un occupant
   // Update your toggleOccupant function
 const toggleOccupant = (stagiaireId) => {
-  console.log(`Toggle occupant with ID: ${stagiaireId}`);
   
   // Convert to strings for comparison
   const idToToggle = String(stagiaireId);
   const currentSelected = selectedOccupantIds.map(id => String(id));
   
   const isSelected = currentSelected.includes(idToToggle);
-  console.log(`Occupant ${idToToggle} is currently ${isSelected ? 'selected' : 'not selected'}`);
   
   // Check if occupant is in another room
   const roomInfo = occupiedRoomsMap[idToToggle];
@@ -124,16 +120,13 @@ const toggleOccupant = (stagiaireId) => {
   // If resident is in another room and not already selected, don't allow selection
   // But don't show an alert - just return without doing anything
   if (roomInfo && !isSelected) {
-    console.log(`Cannot select occupant ${idToToggle} - already assigned to room ${roomInfo.roomNumber}`);
     return; // Exit without doing anything
   }
   
   // Only continue if it's not already in another room
   if (isSelected) {
-    console.log(`Removing occupant ${idToToggle} from selection`);
     setSelectedOccupantIds(prev => prev.filter(id => String(id) !== idToToggle));
   } else {
-    console.log(`Adding occupant ${idToToggle} to selection`);
     // Check capacity first
     if (currentSelected.length >= (chambre?.capacite || 1)) {
       alert(`Cette chambre ne peut pas accueillir plus de ${chambre.capacite} personnes.`);
@@ -146,19 +139,14 @@ const toggleOccupant = (stagiaireId) => {
   // Soumettre les occupants sélectionnés
   // Replace the handleSubmit function as well:
   const handleSubmit = () => {
-    console.log("Submit button clicked");
     
     // Convert all IDs to strings for consistent comparison
     const selectedIds = selectedOccupantIds.map(id => String(id));
     const currentIds = currentOccupants.map(o => String(o._id));
     
-    console.log("Current occupant IDs:", currentIds);
-    console.log("Selected occupant IDs that will be assigned:", selectedIds);
-    
-    // Calculate who's being removed
+
     const removedIds = currentIds.filter(id => !selectedIds.includes(id));
-    console.log("Occupants being removed:", removedIds);
-    
+
     // Check for conflicts
     const conflictingOccupants = selectedIds
       .filter(id => occupiedRoomsMap[id] && 
@@ -182,7 +170,6 @@ const toggleOccupant = (stagiaireId) => {
       return;
     }
     
-    console.log("Final occupants to assign:", selectedIds);
     
     // Submit changes - this will handle both adding new occupants and removing unchecked ones
     onAssign(selectedIds);

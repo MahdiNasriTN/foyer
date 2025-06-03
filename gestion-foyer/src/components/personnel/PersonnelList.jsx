@@ -12,6 +12,7 @@ import {
   OfficeBuildingIcon,
   BriefcaseIcon,
 } from '@heroicons/react/outline';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const PersonnelList = ({ 
   personnel, 
@@ -28,6 +29,8 @@ const PersonnelList = ({
   onChangeFilter,
   viewMode = 'list'
 }) => {
+  const permissions = usePermissions();
+
   // Rendu de la table du personnel
   const renderPersonnelTable = () => (
     <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
@@ -166,19 +169,31 @@ const PersonnelList = ({
                   </span>
                 )}
               </td>
-              <td className="px-6 py-4 text-right">
-                <button 
-                  onClick={() => onEdit(employee)}
-                  className="font-medium text-blue-600 p-1 rounded-md hover:bg-blue-50 mr-2"
-                >
-                  <PencilAltIcon className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => onDelete(employee.id)}
-                  className="font-medium text-red-600 p-1 rounded-md hover:bg-red-50"
-                >
-                  <TrashIcon className="w-5 h-5" />
-                </button>
+              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <div className="flex justify-end space-x-2">
+                  
+                  {/* Edit button - only show if user can edit */}
+                  {permissions.canEdit && (
+                    <button
+                      onClick={() => onEdit && onEdit(employee)}
+                      className="text-green-600 hover:text-green-800"
+                      title="Modifier"
+                    >
+                      <PencilAltIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                  
+                  {/* Delete button - only show if user can delete */}
+                  {permissions.canDelete && (
+                    <button
+                      onClick={() => onDelete && onDelete(employee)}
+                      className="text-red-600 hover:text-red-800"
+                      title="Supprimer"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}

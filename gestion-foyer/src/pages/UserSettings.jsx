@@ -310,7 +310,6 @@ const UserSettings = () => {
           type: 'success'
         });
       } else if (adminModalType === 'edit') {
-        console.log("Updating admin:", adminData);
         await updateAdmin(adminData.id, adminData);
         setNotification({
           show: true,

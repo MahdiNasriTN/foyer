@@ -20,6 +20,7 @@ import {
 
 // Import des icônes
 import { XIcon, ExclamationIcon, CheckIcon, CalendarIcon } from '@heroicons/react/outline';
+import { usePermissions } from '../hooks/usePermissions';
 
 const Personnel = () => {
   const [personnel, setPersonnel] = useState([]);
@@ -62,19 +63,26 @@ const Personnel = () => {
   const [showSchedule, setShowSchedule] = useState(false);
   const [selectedEmployeeForSchedule, setSelectedEmployeeForSchedule] = useState(null);
 
+  const permissions = usePermissions();
+
   // Chargement du personnel
-  const loadPersonnel = async () => {
+  const loadPersonnel = async (customFilters = null) => {
     setLoading(true);
     setError(null);
     try {
+      // Use the provided filters or current filters state
+      const filtersToUse = customFilters || filters;
+      
       const apiFilters = {
-        status: selectedFilter !== 'all' ? selectedFilter : undefined,
-        department: filters.department,
-        role: filters.role,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        search: searchTerm
+        status: filtersToUse.status !== 'all' ? filtersToUse.status : undefined,
+        department: filtersToUse.department !== 'all' ? filtersToUse.department : undefined,
+        role: filtersToUse.role !== 'all' ? filtersToUse.role : undefined,
+        startDate: filtersToUse.startDate || undefined,
+        endDate: filtersToUse.endDate || undefined,
+        search: searchTerm || filtersToUse.search || undefined
       };
+
+      console.log('loadPersonnel - sending filters:', apiFilters); // Debug log
 
       const response = await getAllPersonnel(apiFilters);
       
@@ -106,14 +114,19 @@ const Personnel = () => {
 
   // Chargement initial
   useEffect(() => {
-    loadPersonnel();
+    // Load with initial filters
+    loadPersonnel(filters);
     loadStats();
-  }, []);
+  }, []); // Only run on mount
 
   // Recharger le personnel lorsque les filtres changent
   useEffect(() => {
-    loadPersonnel();
-  }, [selectedFilter, filters, searchTerm]);
+    // Only reload if filters have actually changed and are not the initial state
+    if (filters.status !== 'all' || filters.department !== 'all' || filters.role !== 'all' || 
+        filters.startDate || filters.endDate || searchTerm) {
+      loadPersonnel();
+    }
+  }, [searchTerm]); // Only watch searchTerm changes here
 
   // Fonction pour basculer le tri des données
   const toggleSort = (column) => {
@@ -134,13 +147,26 @@ const Personnel = () => {
 
   // Appliquer les filtres
   const handleApplyFilters = (newFilters) => {
-    setFilters(newFilters);
-    setCurrentPage(1);
+    console.log('Received filters in Personnel handleApplyFilters:', newFilters);
+    
+    // Make sure to preserve ALL filters including status
+    const completeFilters = {
+      ...filters, // Keep existing filters
+      ...newFilters, // Override with new filters
+      search: searchTerm // Preserve search term
+    };
+    
+    console.log('Complete filters being set:', completeFilters);
+    
+    setFilters(completeFilters);
+    
+    // Use loadPersonnel instead of fetchPersonnelData
+    loadPersonnel(completeFilters);
   };
 
   // Réinitialiser les filtres
   const handleResetFilters = () => {
-    setFilters({
+    const resetFilters = {
       status: 'all',
       department: 'all',
       role: 'all',
@@ -148,10 +174,15 @@ const Personnel = () => {
       startDate: '',
       endDate: '',
       search: ''
-    });
+    };
+    
+    setFilters(resetFilters);
     setSearchTerm('');
     setSelectedFilter('all');
     setCurrentPage(1);
+    
+    // Load personnel with reset filters
+    loadPersonnel(resetFilters);
   };
 
   // Filtrage et tri des données du personnel
@@ -352,6 +383,19 @@ const Personnel = () => {
     }
   }, [notification]);
 
+  // Add this function to handle search changes:
+  const handleSearchChange = (newSearchTerm) => {
+    setSearchTerm(newSearchTerm);
+    
+    // Reload with current filters and new search term
+    const filtersWithSearch = {
+      ...filters,
+      search: newSearchTerm
+    };
+    
+    loadPersonnel(filtersWithSearch);
+  };
+
   return (
     <div className="space-y-6">
       {loading && (
@@ -392,12 +436,12 @@ const Personnel = () => {
         <>
           <PersonnelHeader 
             searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
+            onSearchChange={handleSearchChange} // Use the new function
             onToggleStats={() => setIsStatsOpen(!isStatsOpen)}
             isStatsOpen={isStatsOpen}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
-            onAddNew={handleAddEmployee}
+            onAddNew={permissions.canCreate ? handleAddEmployee : undefined} // Pass undefined if no permission
             totalCount={personnel.length}
           />
 
@@ -420,8 +464,8 @@ const Personnel = () => {
             sortBy={sortBy}
             sortOrder={sortOrder}
             onView={handleViewProfile}
-            onEdit={handleEdit}
-            onDelete={handleOpenDeleteModal}
+            onEdit={permissions.canEdit ? handleEdit : undefined} // Pass undefined if no permission
+            onDelete={permissions.canDelete ? handleOpenDeleteModal : undefined} // Pass undefined if no permission
             onSort={toggleSort}
             onChangePage={setCurrentPage}
             selectedFilter={selectedFilter}

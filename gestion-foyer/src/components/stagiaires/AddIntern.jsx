@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createInternStagiaire, updateStagiaire } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) => {
   const fileInputRef = useRef(null);
@@ -8,6 +10,8 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
   const [animatePhoto, setAnimatePhoto] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
+  const permissions = usePermissions();
 
   const [formData, setFormData] = useState(initialData || {
     firstName: '',
@@ -28,6 +32,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     cycle: '',
     sessionYear: new Date().getFullYear().toString(), // Default to current year
     email: '',
+    sexe: 'garcon', // Add gender field with default value
     fatherFirstName: '',
     fatherLastName: '',
     fatherPhone: '',
@@ -44,6 +49,20 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     trainingPeriodFrom: '',
     trainingPeriodTo: '',
     profilePhoto: null,
+
+    // Payment fields
+    restauration: false,
+    foyer: false,
+    inscription: false,
+    restaurationStatus: 'payé', // 'payé' or 'dispensé'
+    foyerStatus: 'payé',
+    inscriptionStatus: 'payé',
+    restaurationSemester1: '',
+    restaurationSemester2: '',
+    foyerSemester1: '',
+    foyerSemester2: '',
+    inscriptionSemester1: '',
+    inscriptionSemester2: '',
   });
 
   // Animation d'entrée pour la photo
@@ -51,11 +70,61 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     setTimeout(() => setAnimatePhoto(true), 300);
   }, []);
 
-  const handleChange = (e) => {
-    const { name, value, type } = e.target;
+  // Add this useEffect to handle payment data initialization for editing
+  useEffect(() => {
+    if (isEditing && initialData) {
+      // If there's payment data in the initialData, transform it to flat structure
+      if (initialData.payment) {
+        const paymentData = initialData.payment;
+        
+        setFormData(prevData => ({
+          ...prevData,
+          // Set payment checkboxes based on enabled status
+          restauration: paymentData.restauration?.enabled || false,
+          foyer: paymentData.foyer?.enabled || false,
+          inscription: paymentData.inscription?.enabled || false,
+          
+          // Set payment statuses
+          restaurationStatus: paymentData.restauration?.status || 'payé',
+          foyerStatus: paymentData.foyer?.status || 'payé',
+          inscriptionStatus: paymentData.inscription?.status || 'payé',
+          
+          // Set payment amounts (convert numbers to strings for inputs)
+          restaurationSemester1: paymentData.restauration?.semester1Price ? paymentData.restauration.semester1Price.toString() : '',
+          restaurationSemester2: paymentData.restauration?.semester2Price ? paymentData.restauration.semester2Price.toString() : '',
+          foyerSemester1: paymentData.foyer?.semester1Price ? paymentData.foyer.semester1Price.toString() : '',
+          foyerSemester2: paymentData.foyer?.semester2Price ? paymentData.foyer.semester2Price.toString() : '',
+          inscriptionSemester1: paymentData.inscription?.semester1Price ? paymentData.inscription.semester1Price.toString() : '',
+          inscriptionSemester2: paymentData.inscription?.semester2Price ? paymentData.inscription.semester2Price.toString() : '',
+        }));
+      }
+      // If payment data exists as flat structure (from backend transformation)
+      else if (initialData.restauration !== undefined || initialData.foyer !== undefined || initialData.inscription !== undefined) {
+        setFormData(prevData => ({
+          ...prevData,
+          restauration: initialData.restauration || false,
+          foyer: initialData.foyer || false,
+          inscription: initialData.inscription || false,
+          restaurationStatus: initialData.restaurationStatus || 'payé',
+          foyerStatus: initialData.foyerStatus || 'payé',
+          inscriptionStatus: initialData.inscriptionStatus || 'payé',
+          restaurationSemester1: initialData.restaurationSemester1?.toString() || '',
+          restaurationSemester2: initialData.restaurationSemester2?.toString() || '',
+          foyerSemester1: initialData.foyerSemester1?.toString() || '',
+          foyerSemester2: initialData.foyerSemester2?.toString() || '',
+          inscriptionSemester1: initialData.inscriptionSemester1?.toString() || '',
+          inscriptionSemester2: initialData.inscriptionSemester2?.toString() || '',
+        }));
+      }
+    }
+  }, [isEditing, initialData]);
 
-    // Pour les champs numériques
-    if (type === 'number') {
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+
+    if (type === 'checkbox') {
+      setFormData({ ...formData, [name]: checked });
+    } else if (type === 'number') {
       setFormData({ ...formData, [name]: value === '' ? '' : Number(value) });
     } else {
       setFormData({ ...formData, [name]: value });
@@ -122,14 +191,15 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     try {
       let response;
 
-      // Ajouter les champs sexe et email requis par le modèle MongoDB
+      // Prepare submission data with proper gender handling
       const submissionData = {
         ...formData,
-        sexe: formData.sexe || 'garcon', // Valeur par défaut
+        sexe: formData.sexe || 'garcon', // Ensure gender is always set
         email: formData.email || `${formData.firstName.toLowerCase()}.${formData.lastName.toLowerCase()}@example.com`,
         dateArrivee: formData.trainingPeriodFrom,
         dateDepart: formData.trainingPeriodTo,
-        entreprise: formData.centerName
+        entreprise: formData.centerName,
+        type: 'interne' // Ensure type is set for internal stagiaires
       };
 
       if (isEditing) {
@@ -149,45 +219,57 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
   };
 
   const fillTestData = () => {
-    const testData = {
-      firstName: 'Mahdi',
-      lastName: 'Nasri',
-      cinNumber: '09876543',
-      cinPlace: 'Tunis',
-      cinDate: '2020-05-15',
-      dateOfBirth: '1998-03-12',
-      placeOfBirth: 'Sousse',
-      nationality: 'Tunisienne',
-      currentSituation: 'Stagiaire',
-      phoneNumber: '55123456',
-      sendingAddress: '25 Rue Ibn Khaldoun',
-      city: 'Tunis',
-      postalCode: '1002',
-      centerName: 'Institut Supérieur d\'Informatique',
-      specialization: 'Développement Web',
-      cycle: 'sep',
-      sessionYear: new Date().getFullYear().toString(),
-      email: 'mahdi.nasri@example.com',
-      fatherFirstName: 'Ahmed',
-      fatherLastName: 'Nasri',
-      fatherPhone: '98765432',
-      fatherJob: 'Ingénieur',
-      fatherJobPlace: 'Société ABC',
-      motherFirstName: 'Fatima',
-      motherLastName: 'Nasri',
-      motherPhone: '55667788',
-      motherJob: 'Médecin',
-      motherJobPlace: 'Hôpital X',
-      numberOfBrothers: 1,
-      numberOfSisters: 2,
-      hobby: 'Football, Lecture, Voyages',
-      trainingPeriodFrom: '2023-09-01',
-      trainingPeriodTo: '2024-06-30',
-      sexe: 'garcon'
-    };
-
-    setFormData(testData);
+  const testData = {
+    firstName: 'Mahdi',
+    lastName: 'Nasri',
+    cinNumber: '09876543',
+    cinPlace: 'Tunis',
+    cinDate: '2020-05-15',
+    dateOfBirth: '1998-03-12',
+    placeOfBirth: 'Sousse',
+    nationality: 'Tunisienne',
+    currentSituation: 'Stagiaire',
+    phoneNumber: '55123456',
+    sendingAddress: '25 Rue Ibn Khaldoun',
+    city: 'Tunis',
+    postalCode: '1002',
+    centerName: 'Institut Supérieur d\'Informatique',
+    specialization: 'Développement Web',
+    cycle: 'sep',
+    sessionYear: new Date().getFullYear().toString(),
+    email: 'mahdi.nasri@example.com',
+    sexe: 'garcon', // Include gender in test data
+    fatherFirstName: 'Ahmed',
+    fatherLastName: 'Nasri',
+    fatherPhone: '98765432',
+    fatherJob: 'Ingénieur',
+    fatherJobPlace: 'Société ABC',
+    motherFirstName: 'Fatima',
+    motherLastName: 'Nasri',
+    motherPhone: '55667788',
+    motherJob: 'Médecin',
+    motherJobPlace: 'Hôpital X',
+    numberOfBrothers: 1,
+    numberOfSisters: 2,
+    hobby: 'Football, Lecture, Voyages',
+    trainingPeriodFrom: '2023-09-01',
+    trainingPeriodTo: '2024-06-30',
+    restauration: true,
+    foyer: true,
+    inscription: true,
+    restaurationStatus: 'payé',
+    foyerStatus: 'payé',
+    inscriptionStatus: 'dispensé',
+    restaurationSemester1: '120.00',
+    restaurationSemester2: '120.00',
+    foyerSemester1: '80.00',
+    foyerSemester2: '80.00',
+    inscriptionSemester1: '',
+    inscriptionSemester2: '',
   };
+
+  setFormData(testData);
+};
 
   const generateYearOptions = () => {
     const currentYear = new Date().getFullYear();
@@ -210,8 +292,79 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
   const sectionHeaderClass = "text-xl font-bold text-blue-700 mb-6 pb-2 border-b-2 border-blue-200 flex items-center gap-2";
   const sectionClass = "bg-white p-6 rounded-xl shadow-md border border-gray-100 mb-8";
 
+  // Add this condition at the beginning of the component
+  if (!permissions.canCreate && !initialData) {
+    return (
+      <div className="bg-white shadow-xl rounded-2xl p-8 max-w-full mx-auto my-4 w-[98%]">
+        <div className="text-center py-12">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.316 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Accès Restreint</h3>
+          <p className="text-gray-600">Vous n'avez pas les permissions nécessaires pour ajouter des stagiaires.</p>
+          <button
+            onClick={onCancel}
+            className="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+          >
+            Retour
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!permissions.canEdit && initialData) {
+    return (
+      <div className="bg-white shadow-xl rounded-2xl p-8 max-w-full mx-auto my-4 w-[98%]">
+        <div className="text-center py-12">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
+            <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.316 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Mode Lecture Seule</h3>
+          <p className="text-gray-600">Vous n'avez pas les permissions nécessaires pour modifier les stagiaires.</p>
+          <button
+            onClick={onCancel}
+            className="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+          >
+            Retour
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white shadow-xl rounded-2xl p-8 max-w-full mx-auto my-4 w-[98%]">
+      {/* Back Button */}
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={() => {
+            if (onCancel) {
+              onCancel(); // Use the onCancel prop if provided
+            } else {
+              navigate('/stagiaires'); // Fallback to navigation
+            }
+          }}
+          className="group inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+        >
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            className="h-5 w-5 mr-2 group-hover:-translate-x-1 transition-transform duration-200" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Retour aux stagiaires
+        </button>
+      </div>
+
       <h2 className="text-4xl font-bold text-blue-800 mb-5 text-center">
         {isEditing ? 'Modifier un Stagiaire' : 'Ajouter un Stagiaire'}
       </h2>
@@ -433,6 +586,22 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                 required
                 className={inputClass}
               />
+            </div>
+            <div>
+              <label htmlFor="sexe" className={labelClass}>
+                Genre *
+              </label>
+              <select
+                id="sexe"
+                name="sexe"
+                value={formData.sexe}
+                onChange={handleChange}
+                required
+                className={inputClass}
+              >
+                <option value="garcon">👦 Garçon</option>
+                <option value="fille">👧 Fille</option>
+              </select>
             </div>
             <div>
               <label htmlFor="dateOfBirth" className={labelClass}>
@@ -964,6 +1133,353 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                 className={inputClass}
               />
             </div>
+          </div>
+        </div>
+
+        {/* Payment Information Section */}
+        <div className={sectionClass}>
+          <h3 className={sectionHeaderClass}>
+            <span className="bg-emerald-100 text-emerald-700 p-1.5 rounded-lg">💰</span>
+            Informations de Paiement
+          </h3>
+          
+          <div className="space-y-6">
+            {/* Combined Restauration & Foyer */}
+            <div className="border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center mb-4">
+                <input
+                  type="checkbox"
+                  id="restaurationFoyer"
+                  name="restaurationFoyer"
+                  checked={formData.restauration || formData.foyer}
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    setFormData({
+                      ...formData,
+                      restauration: isChecked,
+                      foyer: isChecked
+                    });
+                  }}
+                  className="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                />
+                <label htmlFor="restaurationFoyer" className="ml-3 text-lg font-medium text-gray-700">
+                  Restauration & Foyer (Logement)
+                </label>
+              </div>
+              
+              {(formData.restauration || formData.foyer) && (
+                <div className="ml-7 space-y-6">
+                  {/* Restauration Section */}
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 className="text-md font-semibold text-blue-800 mb-3 flex items-center">
+                      🍽️ Restauration
+                    </h4>
+                    
+                    {/* Restauration Status Selection */}
+                    <div className="flex space-x-4 mb-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="restaurationStatus"
+                          value="payé"
+                          checked={formData.restaurationStatus === 'payé'}
+                          onChange={handleChange}
+                          className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Payé</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="restaurationStatus"
+                          value="dispensé"
+                          checked={formData.restaurationStatus === 'dispensé'}
+                          onChange={handleChange}
+                          className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Dispensé</span>
+                      </label>
+                    </div>
+                    
+                    {/* Restauration Price Inputs */}
+                    {formData.restaurationStatus === 'payé' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="restaurationSemester1" className={labelClass}>
+                            Prix Semestre 1 (DT)
+                          </label>
+                          <input
+                            type="number"
+                            id="restaurationSemester1"
+                            name="restaurationSemester1"
+                            value={formData.restaurationSemester1}
+                            onChange={handleChange}
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="restaurationSemester2" className={labelClass}>
+                            Prix Semestre 2 (DT)
+                          </label>
+                          <input
+                            type="number"
+                            id="restaurationSemester2"
+                            name="restaurationSemester2"
+                            value={formData.restaurationSemester2}
+                            onChange={handleChange}
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Foyer Section */}
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 className="text-md font-semibold text-green-800 mb-3 flex items-center">
+                      🏠 Foyer (Logement)
+                    </h4>
+                    
+                    {/* Foyer Status Selection */}
+                    <div className="flex space-x-4 mb-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="foyerStatus"
+                          value="payé"
+                          checked={formData.foyerStatus === 'payé'}
+                          onChange={handleChange}
+                          className="h-4 w-4 text-green-600 border-gray-300 focus:ring-green-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Payé</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="foyerStatus"
+                          value="dispensé"
+                          checked={formData.foyerStatus === 'dispensé'}
+                          onChange={handleChange}
+                          className="h-4 w-4 text-green-600 border-gray-300 focus:ring-green-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Dispensé</span>
+                      </label>
+                    </div>
+                    
+                    {/* Foyer Price Inputs */}
+                    {formData.foyerStatus === 'payé' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="foyerSemester1" className={labelClass}>
+                            Prix Semestre 1 (DT)
+                          </label>
+                          <input
+                            type="number"
+                            id="foyerSemester1"
+                            name="foyerSemester1"
+                            value={formData.foyerSemester1}
+                            onChange={handleChange}
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="foyerSemester2" className={labelClass}>
+                            Prix Semestre 2 (DT)
+                          </label>
+                          <input
+                            type="number"
+                            id="foyerSemester2"
+                            name="foyerSemester2"
+                            value={formData.foyerSemester2}
+                            onChange={handleChange}
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Inscription - Separate */}
+            <div className="border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center mb-4">
+                <input
+                  type="checkbox"
+                  id="inscription"
+                  name="inscription"
+                  checked={formData.inscription}
+                  onChange={handleChange}
+                  className="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                />
+                <label htmlFor="inscription" className="ml-3 text-lg font-medium text-gray-700">
+                  Inscription
+                </label>
+              </div>
+              
+              {formData.inscription && (
+                <div className="ml-7 space-y-4">
+                  {/* Status Selection */}
+                  <div className="flex space-x-4">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="inscriptionStatus"
+                        value="payé"
+                        checked={formData.inscriptionStatus === 'payé'}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
+                      />
+                      <span className="ml-2 text-sm font-medium text-gray-700">Payé</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="inscriptionStatus"
+                        value="dispensé"
+                        checked={formData.inscriptionStatus === 'dispensé'}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
+                      />
+                      <span className="ml-2 text-sm font-medium text-gray-700">Dispensé</span>
+                    </label>
+                  </div>
+                  
+                  {/* Price Inputs for Payé */}
+                  {formData.inscriptionStatus === 'payé' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="inscriptionSemester1" className={labelClass}>
+                          Prix Semestre 1 (DT)
+                        </label>
+                        <input
+                          type="number"
+                          id="inscriptionSemester1"
+                          name="inscriptionSemester1"
+                          value={formData.inscriptionSemester1}
+                          onChange={handleChange}
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="inscriptionSemester2" className={labelClass}>
+                          Prix Semestre 2 (DT)
+                        </label>
+                        <input
+                          type="number"
+                          id="inscriptionSemester2"
+                          name="inscriptionSemester2"
+                          value={formData.inscriptionSemester2}
+                          onChange={handleChange}
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Payment Summary */}
+            {(formData.restauration || formData.foyer || formData.inscription) && (
+              <div className="mt-6 p-4 bg-gradient-to-br from-emerald-50 to-green-50 rounded-lg border border-emerald-200">
+                <h4 className="text-lg font-semibold text-emerald-800 mb-3 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                  </svg>
+                  Résumé des Paiements
+                </h4>
+                <div className="space-y-3">
+                  {(formData.restauration || formData.foyer) && (
+                    <div className="bg-white p-3 rounded-md border border-emerald-100">
+                      <h5 className="font-medium text-gray-800 mb-2">Restauration & Foyer:</h5>
+                      <div className="space-y-1">
+                        {formData.restauration && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">
+                              🍽️ Restauration ({formData.restaurationStatus}):
+                            </span>
+                            <span className="font-semibold text-blue-700">
+                              {formData.restaurationStatus === 'payé' 
+                                ? `${((parseFloat(formData.restaurationSemester1) || 0) + (parseFloat(formData.restaurationSemester2) || 0)).toFixed(2)} DT`
+                                : 'Dispensé'
+                              }
+                            </span>
+                          </div>
+                        )}
+                        {formData.foyer && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">
+                              🏠 Foyer ({formData.foyerStatus}):
+                            </span>
+                            <span className="font-semibold text-green-700">
+                              {formData.foyerStatus === 'payé' 
+                                ? `${((parseFloat(formData.foyerSemester1) || 0) + (parseFloat(formData.foyerSemester2) || 0)).toFixed(2)} DT`
+                                : 'Dispensé'
+                              }
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {formData.inscription && (
+                    <div className="flex justify-between items-center py-2 px-3 bg-white rounded-md border border-emerald-100">
+                      <span className="text-sm font-medium text-gray-700">
+                        📋 Inscription ({formData.inscriptionStatus}):
+                      </span>
+                      <span className="font-semibold text-emerald-700">
+                        {formData.inscriptionStatus === 'payé' 
+                          ? `${((parseFloat(formData.inscriptionSemester1) || 0) + (parseFloat(formData.inscriptionSemester2) || 0)).toFixed(2)} DT`
+                          : 'Dispensé'
+                        }
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="border-t border-emerald-200 pt-3 mt-3">
+                    <div className="flex justify-between items-center py-2 px-3 bg-emerald-100 rounded-md">
+                      <span className="font-bold text-emerald-800">Total à payer:</span>
+                      <span className="font-bold text-lg text-emerald-800">
+                        {(() => {
+                          let total = 0;
+                          if (formData.restauration && formData.restaurationStatus === 'payé') {
+                            total += (parseFloat(formData.restaurationSemester1) || 0) + (parseFloat(formData.restaurationSemester2) || 0);
+                          }
+                          if (formData.foyer && formData.foyerStatus === 'payé') {
+                            total += (parseFloat(formData.foyerSemester1) || 0) + (parseFloat(formData.foyerSemester2) || 0);
+                          }
+                          if (formData.inscription && formData.inscriptionStatus === 'payé') {
+                            total += (parseFloat(formData.inscriptionSemester1) || 0) + (parseFloat(formData.inscriptionSemester2) || 0);
+                          }
+                          return `${total.toFixed(2)} DT`;
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

@@ -33,12 +33,25 @@ const PersonnelFilters = ({ filters, onApplyFilters, onResetFilters }) => {
 
   // Appliquer les filtres
   const applyFilters = () => {
-    onApplyFilters(localFilters);
+    // Create a clean filter object, ensuring status is properly included
+    const filtersToApply = {
+      status: localFilters.status,
+      department: localFilters.department,
+      role: localFilters.role,
+      dateRange: localFilters.dateRange,
+      startDate: localFilters.startDate,
+      endDate: localFilters.endDate
+    };
+    
+    // Debug log to check what's being sent
+    console.log('Applying filters:', filtersToApply);
+    
+    onApplyFilters(filtersToApply);
   };
 
   // Réinitialiser les filtres
   const resetFilters = () => {
-    const resetFilters = {
+    const resetFiltersObj = {
       status: 'all',
       department: 'all',
       role: 'all',
@@ -46,8 +59,8 @@ const PersonnelFilters = ({ filters, onApplyFilters, onResetFilters }) => {
       startDate: '',
       endDate: ''
     };
-    setLocalFilters(resetFilters);
-    onResetFilters(resetFilters);
+    setLocalFilters(resetFiltersObj);
+    onResetFilters(resetFiltersObj);
   };
 
   // Compter le nombre de filtres actifs

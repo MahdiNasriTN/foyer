@@ -1,14 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { mockEtudiants, mockStagiaires } from '../utils/mockData'; // Nous allons toujours utiliser les données simulées pour les occupants pour l'instant
-import {
-    PlusIcon,
-    UserGroupIcon,
-    ChartPieIcon,
-    ViewGridIcon,
-    ViewListIcon,
-    AdjustmentsIcon,
-    SearchIcon
-} from '@heroicons/react/outline';
 import ChambreModal from '../components/chambres/ChambreModal';
 import AssignModal from '../components/chambres/AssignModal';
 import ChambreCard from '../components/chambres/ChambreCard';
@@ -22,6 +13,45 @@ import {
 } from '../services/api';
 import DeleteChambreModal from '../components/chambres/DeleteChambreModal';
 import ManageOccupantsModal from '../components/chambres/ManageOccupantsModal';
+import { usePermissions } from '../hooks/usePermissions';
+import {
+  SearchIcon,
+  ViewGridIcon,
+  ViewListIcon,
+  FilterIcon,
+} from '@heroicons/react/outline';
+
+// If Heroicons imports fail, replace with these simple SVG components:
+
+const PlusIcon = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+  </svg>
+);
+
+const ChartPieIcon = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  </svg>
+);
+
+const DownloadIcon = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+  </svg>
+);
+
+const AdjustmentsIcon = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+  </svg>
+);
+
+const UserGroupIcon = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+  </svg>
+);
 
 const Chambres = () => {
     // États
@@ -47,6 +77,8 @@ const Chambres = () => {
     const [chambreToDelete, setChambreToDelete] = useState(null);
     const [showManageOccupantsModal, setShowManageOccupantsModal] = useState(false);
 
+    const permissions = usePermissions();
+
     // Charger les chambres depuis l'API
     const loadChambres = useCallback(async () => {
         setLoading(true);
@@ -63,7 +95,6 @@ const Chambres = () => {
                 sortOrder: 'asc'
             };
 
-            console.log("Sending filters to API:", filters);
 
             // Call the API
             const response = await fetchChambres(filters);
@@ -86,7 +117,6 @@ const Chambres = () => {
                     // Add any other fields your component needs
                 }));
 
-                console.log("Processed chambres:", processedChambres);
                 setChambres(processedChambres);
             } else {
                 console.error("Unexpected API response format:", response);
@@ -212,7 +242,6 @@ const Chambres = () => {
             // Get current occupants to identify which ones are being unassigned
             let currentOccupants = [];
             if (currentChambre && (currentChambre.occupants || []).length > 0) {
-                // You might need to fetch the current occupants if not already loaded
                 currentOccupants = currentChambre.occupants || [];
             }
             
@@ -250,29 +279,52 @@ const Chambres = () => {
             setShowAssignModal(false);
         } catch (err) {
             console.error('Erreur lors de l\'assignation des occupants:', err);
-
-            if (err.isConflict) {
-                // Format a descriptive message about the conflicts
-                const conflictRooms = [...new Set(err.conflicts.map(c => c.roomNumber))].join(', ');
-
-                setNotification({
-                    show: true,
-                    message: `${err.message} (${conflictRooms}). Veuillez d'abord retirer ces résidents de leur chambre actuelle.`,
-                    type: 'warning'
-                });
-            } else {
-                setError('Erreur lors de l\'assignation des occupants.');
-                setNotification({
-                    show: true,
-                    message: 'Erreur lors de l\'assignation des occupants',
-                    type: 'error'
-                });
+            
+            // Close the assign modal when there's an error
+            setShowAssignModal(false);
+            
+            // Extract the backend error message
+            let errorMessage = 'Erreur lors de l\'assignation des occupants';
+            
+            if (err.response?.data?.message) {
+                // Use the backend message directly
+                errorMessage = err.response.data.message;
+            } else if (err.message) {
+                // Fallback to error message
+                errorMessage = err.message;
+            } else if (typeof err === 'string') {
+                // Handle string errors
+                errorMessage = err;
             }
-
-            // Hide notification after 7 seconds
+            
+            
+            // Determine notification type based on error content
+            let notificationType = 'error';
+            if (errorMessage.includes('réservée aux') || 
+                errorMessage.includes('externes ne peuvent pas') || 
+                errorMessage.includes('capacité') ||
+                errorMessage.includes('déjà assignés')) {
+                notificationType = 'warning';
+            }
+            
+            setNotification({
+                show: true,
+                message: errorMessage,
+                type: notificationType
+            });
+            
+            // Hide notification after 7 seconds for errors
             setTimeout(() => {
                 setNotification(prev => ({ ...prev, show: false }));
             }, 7000);
+            
+            // Also set the error state for additional error display if needed
+            setError(errorMessage);
+            
+            // Clear error after some time
+            setTimeout(() => {
+                setError(null);
+            }, 10000);
         } finally {
             setLoading(false);
         }
@@ -372,31 +424,108 @@ const Chambres = () => {
         }
     };
 
+    const handleExport = () => {
+      try {
+        // Create CSV content
+        const headers = [
+          'Numéro',
+          'Type', 
+          'Capacité',
+          'Nombre de lits',
+          'Étage',
+          'Occupants actuels',
+          'Statut',
+          'Genre',
+          'Équipements',
+          'Dernière mise à jour'
+        ];
+        
+        const csvContent = [
+          headers.join(','),
+          ...chambres.map(chambre => [
+            `"${chambre.numero || ''}"`,
+            `"${chambre.type || 'Standard'}"`,
+            chambre.capacite || 0,
+            chambre.nombreLits || chambre.capacite || 0,
+            chambre.etage || 1,
+            chambre.occupants?.length || 0,
+            `"${chambre.statut === 'occupee' ? 'Occupée' : 'Disponible'}"`,
+            `"${chambre.gender === 'garcon' ? 'Garçons' : chambre.gender === 'fille' ? 'Filles' : 'Non spécifié'}"`,
+            `"${(chambre.equipements || []).join('; ')}"`,
+            `"${chambre.updatedAt ? new Date(chambre.updatedAt).toLocaleDateString('fr-FR') : ''}"`
+          ].join(','))
+        ].join('\n');
+
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `chambres_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        
+        // Show success notification
+        setNotification({
+          show: true,
+          type: 'success',
+          message: `Export de ${chambres.length} chambres réussi!`
+        });
+        
+      } catch (error) {
+        console.error('Erreur lors de l\'export:', error);
+        setNotification({
+          show: true,
+          type: 'error',
+          message: 'Erreur lors de l\'export des chambres'
+        });
+      }
+    };
+
     // Le reste de votre code JSX reste inchangé...
     return (
         <div className="space-y-8 pb-8">
             {/* Notification */}
             {notification.show && (
-                <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center space-x-2 ${notification.type === 'success' ? 'bg-green-500 text-white' :
-                        notification.type === 'warning' ? 'bg-amber-500 text-white' :
-                            'bg-red-500 text-white'
-                    }`}>
-                    {notification.type === 'warning' && (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                    )}
-                    {notification.type === 'success' && (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                    )}
-                    {notification.type === 'error' && (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className={`fixed top-4 right-4 z-50 max-w-md rounded-lg shadow-lg flex items-start space-x-3 p-4 ${
+                    notification.type === 'success' ? 'bg-green-500 text-white' :
+                    notification.type === 'warning' ? 'bg-amber-500 text-white' :
+                    'bg-red-500 text-white'
+                }`}>
+                    <div className="flex-shrink-0 mt-0.5">
+                        {notification.type === 'warning' && (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        )}
+                        {notification.type === 'success' && (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                        )}
+                        {notification.type === 'error' && (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-relaxed break-words">
+                            {notification.message}
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setNotification(prev => ({ ...prev, show: false }))}
+                        className="flex-shrink-0 ml-2 text-white/80 hover:text-white"
+                    >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                    )}
-                    <p>{notification.message}</p>
+                    </button>
                 </div>
             )}
 
@@ -442,21 +571,26 @@ const Chambres = () => {
 
                                 {/* Actions principales */}
                                 <div className="flex flex-wrap items-center gap-3 md:justify-end">
-                                    <button
-                                        onClick={() => setIsStatsOpen(!isStatsOpen)}
-                                        className="inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-medium shadow-sm bg-white/10 text-white border border-white/10 hover:bg-white/20 transition-all backdrop-blur-sm"
-                                    >
-                                        <ChartPieIcon className="h-4 w-4 mr-2 text-blue-300" aria-hidden="true" />
-                                        {isStatsOpen ? 'Masquer' : 'Statistiques'}
-                                    </button>
+                                  
+                                  {/* Stats button - always available */}
+                                  <button
+                                      onClick={() => setIsStatsOpen(!isStatsOpen)}
+                                      className="inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-medium shadow-sm bg-white/10 text-white border border-white/10 hover:bg-white/20 transition-all backdrop-blur-sm"
+                                  >
+                                      <ChartPieIcon className="h-4 w-4 mr-2 text-blue-300" aria-hidden="true" />
+                                      {isStatsOpen ? 'Masquer' : 'Statistiques'}
+                                  </button>
 
-                                    <button
-                                        onClick={() => handleOpenModal()}
-                                        className="inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-medium shadow-sm bg-cyan-500 text-white hover:bg-cyan-600 transition-all"
-                                    >
-                                        <PlusIcon className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                                        Ajouter
-                                    </button>
+                                  {/* Export button - always available */}
+                                  <button
+                                      onClick={handleExport}
+                                      className="inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-medium shadow-sm bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
+                                  >
+                                      <DownloadIcon className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                                      Exporter ({chambres.length})
+                                  </button>
+
+                                  
                                 </div>
                             </div>
 
@@ -679,28 +813,26 @@ const Chambres = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {filteredChambres.map((chambre) => (
                             <ChambreCard
-                                key={chambre.id}
+                                key={chambre.id || chambre._id}
                                 chambre={chambre}
-                                onEdit={() => handleOpenModal(chambre)}
-                                onDelete={() => handleOpenDeleteModal(chambre)}
-                                onAssign={() => handleOpenAssignModal(chambre)}
-                                onManage={() => handleOpenManageOccupantsModal(chambre)} // Add this line
-                                residents={[...mockEtudiants, ...mockStagiaires]}
+                                onAssign={handleOpenAssignModal}
+                                onEdit={permissions.canEdit ? handleOpenModal : () => {}}
+                                onDelete={permissions.canDelete ? handleOpenDeleteModal : () => {}}
                                 refreshTrigger={refreshTrigger}
                             />
                         ))}
 
                         {/* Carte d'ajout */}
                         <div
-                            onClick={() => handleOpenModal()}
-                            className="bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-50 hover:border-primary/30 hover:text-primary transition-all group h-full min-h-[220px]"
+                            onClick={permissions.isSuperAdmin ? () => handleOpenModal() : undefined}
+                            className={`bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all group h-full min-h-[220px] ${permissions.isSuperAdmin ? 'text-gray-400 hover:bg-gray-50 hover:border-primary/30 hover:text-primary' : 'text-gray-300 cursor-not-allowed'}`}
                         >
-                            <div className="h-14 w-14 rounded-full bg-gray-100 group-hover:bg-primary/10 flex items-center justify-center mb-4 transition-all duration-300">
+                            <div className={`h-14 w-14 rounded-full flex items-center justify-center mb-4 transition-all duration-300 ${permissions.isSuperAdmin ? 'bg-gray-100 group-hover:bg-primary/10' : 'bg-gray-200'}`}>
                                 <PlusIcon className="h-8 w-8" />
                             </div>
-                            <p className="text-center font-medium">Ajouter une chambre</p>
-                            <p className="text-xs text-center mt-1 max-w-[180px]">
-                                Cliquez pour ajouter une nouvelle chambre au foyer
+                            <p className={`text-center font-medium ${!permissions.isSuperAdmin && 'text-gray-300'}`}>Ajouter une chambre</p>
+                            <p className={`text-xs text-center mt-1 max-w-[180px] ${!permissions.isSuperAdmin && 'text-gray-300'}`}>
+                                {permissions.isSuperAdmin ? 'Cliquez pour ajouter une nouvelle chambre au foyer' : 'Accès restreint à l\'ajout de chambres'}
                             </p>
                         </div>
 

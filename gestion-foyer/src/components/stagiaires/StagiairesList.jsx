@@ -21,6 +21,7 @@ import {
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import axios from 'axios';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const StagiairesList = ({ 
   stagiaires, 
@@ -39,10 +40,12 @@ const StagiairesList = ({
   filters,
   onApplyFilters,
   onResetFilters,
-  getDisplayableChambre,
-  onExport, // Add this new prop for handling export
-  onExportSingle // Keep existing prop for single stagiaire export
+  getDisplayableChambre, // This function might be the issue
+  onExport,  
+  onExportSingle,
+  permissions // Add this prop
 }) => {
+  const { canEdit, canDelete } = usePermissions();
   const [hoveredRow, setHoveredRow] = useState(null);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [activeFilterTab, setActiveFilterTab] = useState('status');
@@ -52,6 +55,9 @@ const StagiairesList = ({
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [stagiaireToDelete, setStagiaireToDelete] = useState(null);
   const [showExportOptions, setShowExportOptions] = useState(false); // New state for export options
+
+  // Update your state variables (keep only paymentStatusFilter, remove paymentTypeFilter)
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
 
   useEffect(() => {
     // Make sure the localFilters includes the year field
@@ -63,26 +69,51 @@ const StagiairesList = ({
 
   const availableRooms = ['101', '102', '103', '104', '105']; // Example room numbers
 
+  // Update your handleFilterChange function
   const handleFilterChange = (filterType, value) => {
-    setLocalFilters((prevFilters) => ({
-      ...prevFilters,
-      [filterType]: value
-    }));
+    if (filterType === 'paymentStatus') {
+      setPaymentStatusFilter(value);
+    } else {
+      setLocalFilters((prevFilters) => ({
+        ...prevFilters,
+        [filterType]: value
+      }));
+    }
   };
 
-  const resetFilters = () => {
-    onResetFilters();
-  };
-
+  // Update your applyFilters function
   const applyFilters = () => {
-    onApplyFilters(localFilters);
+    const filtersToApply = {
+      ...localFilters,
+      paymentStatus: paymentStatusFilter // Make sure this is included
+    };
+    
+    onApplyFilters(filtersToApply);
+  };
+
+  // Update your resetFilters function
+  const resetFilters = () => {
+    setLocalFilters({
+      status: 'all',
+      room: 'all',
+      specificRoom: '',
+      gender: 'all',
+      session: 'all',
+      year: 'all',
+      startDate: '',
+      endDate: ''
+    });
+    setPaymentStatusFilter(''); // Reset payment filter
+    onResetFilters();
   };
 
   const getActiveFilterCount = () => {
     let count = 0;
     Object.values(localFilters).forEach((value) => {
-      if (value && value !== 'all') count++;
+      if (value && value !== 'all' && value !== '') count++;
     });
+    // Add payment filter to count
+    if (paymentStatusFilter && paymentStatusFilter !== '') count++;
     return count;
   };
 
@@ -150,11 +181,11 @@ const StagiairesList = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-6">
         {stagiaires.map((stagiaire) => (
           <div 
-            key={stagiaire.id}
+            key={stagiaire._id || stagiaire.id}
             className={`bg-white border rounded-xl shadow-sm overflow-hidden transition-all duration-300
-              ${hoveredCard === stagiaire.id ? 'shadow-md transform scale-[1.02] border-cyan-200' : 'hover:shadow-md hover:border-blue-200'}
+              ${hoveredCard === (stagiaire._id || stagiaire.id) ? 'shadow-md transform scale-[1.02] border-cyan-200' : 'hover:shadow-md hover:border-blue-200'}
             `}
-            onMouseEnter={() => setHoveredCard(stagiaire.id)}
+            onMouseEnter={() => setHoveredCard(stagiaire._id || stagiaire.id)}
             onMouseLeave={() => setHoveredCard(null)}
           >
             <div className="p-1">
@@ -206,9 +237,10 @@ const StagiairesList = ({
                   <OfficeBuildingIcon className="h-4 w-4 mr-1.5 text-gray-400" />
                   <span>Chambre</span>
                 </div>
-                {stagiaire.chambre ? (
+                {/* FIXED: Use getDisplayableRoom instead of getDisplayableChambre */}
+                {getDisplayableRoom(stagiaire) !== 'Non assignée' ? (
                   <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-xs font-medium">
-                    {getDisplayableChambre(stagiaire.chambre)}
+                    {getDisplayableRoom(stagiaire)}
                   </span>
                 ) : (
                   <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-md text-xs font-medium">
@@ -228,7 +260,7 @@ const StagiairesList = ({
 
             <div className="bg-gray-50 px-5 py-3 flex justify-between items-center border-t border-gray-100">
               <button 
-                onClick={() => onView(stagiaire.id)}
+                onClick={() => onView(stagiaire._id || stagiaire.id)}
                 className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
               >
                 <UserIcon className="h-3.5 w-3.5 mr-1" />
@@ -264,6 +296,27 @@ const StagiairesList = ({
         ))}
       </div>
     );
+  };
+
+  // Update the component to properly handle room display
+  const getDisplayableRoom = (stagiaire) => {
+
+    // Check if the stagiaire has room information from the API
+    if (stagiaire.chambreInfo && stagiaire.chambreNumero) {
+      return stagiaire.chambreNumero;
+    }
+    
+    // Fallback to chambre field if it exists
+    if (stagiaire.chambre) {
+      if (typeof stagiaire.chambre === 'object' && stagiaire.chambre.numero) {
+        return stagiaire.chambre.numero;
+      }
+      if (typeof stagiaire.chambre === 'string') {
+        return stagiaire.chambre;
+      }
+    }
+    
+    return 'Non assignée';
   };
 
   // Rendu de la vue en liste
@@ -322,9 +375,9 @@ const StagiairesList = ({
           <tbody>
             {stagiaires.map((stagiaire) => (
               <tr 
-                key={stagiaire.id} 
-                className={getRowClass(stagiaire.id)}
-                onMouseEnter={() => setHoveredRow(stagiaire.id)}
+                key={stagiaire._id || stagiaire.id} 
+                className={getRowClass(stagiaire._id || stagiaire.id)}
+                onMouseEnter={() => setHoveredRow(stagiaire._id || stagiaire.id)}
                 onMouseLeave={() => setHoveredRow(null)}
               >
                 <td className="py-3 px-6 whitespace-nowrap">
@@ -362,11 +415,12 @@ const StagiairesList = ({
                 </td>
                 
                 <td className="py-3 px-6 whitespace-nowrap">
-                  {stagiaire.chambre ? (
+                  {/* FIXED: Use getDisplayableRoom instead of getDisplayableChambre */}
+                  {getDisplayableRoom(stagiaire) !== 'Non assignée' ? (
                     <div className="flex items-center">
                       <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-xs font-medium inline-flex items-center">
                         <CheckCircleIcon className="h-3.5 w-3.5 mr-1" />
-                        {getDisplayableChambre(stagiaire.chambre)}
+                        {getDisplayableRoom(stagiaire)}
                       </span>
                     </div>
                   ) : (
@@ -404,37 +458,44 @@ const StagiairesList = ({
                 </td>
                 
                 {/* Actions column - add export icon */}
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => onView(stagiaire.id)}
-                      className="text-blue-600 hover:text-blue-800"
-                      title="Voir le profil"
-                    >
-                      <UserIcon className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => onEdit(stagiaire)}
-                      className="text-green-600 hover:text-green-800"
-                      title="Modifier"
-                    >
-                      <PencilAltIcon className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClick(stagiaire)}
-                      className="text-red-600 hover:text-red-800"
-                      title="Supprimer"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <div className="flex justify-end space-x-2">
                     
-                    {/* New export button */}
+                    {/* Edit button - only show if onEdit is provided */}
+                    {onEdit && (
+                      <button
+                        onClick={() => onEdit(stagiaire)}
+                        className="text-green-600 hover:text-green-800"
+                        title="Modifier"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                    )}
+                    
+                    {/* Delete button - only show if onDelete is provided */}
+                    {onDelete && (
+                      <button
+                        onClick={() => handleDeleteClick(stagiaire)}
+                        className="text-red-600 hover:text-red-800"
+                        title="Supprimer"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
+                    
+                    {/* Export button - always available */}
                     <button
-                      onClick={() => onExportSingle(stagiaire)}
+                      onClick={() => onExportSingle && onExportSingle(stagiaire)}
                       className="text-emerald-600 hover:text-emerald-800"
                       title="Exporter"
                     >
-                      <DownloadIcon className="h-4 w-4" />
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
                     </button>
                   </div>
                 </td>
@@ -462,7 +523,6 @@ const StagiairesList = ({
         await onDelete(idToDelete);
         
         // Show success notification if needed (can be handled in parent)
-        console.log(`Stagiaire ${idToDelete} supprimé avec succès`);
       } catch (error) {
         // Handle errors
         console.error('Erreur lors de la suppression du stagiaire:', error);
@@ -817,28 +877,49 @@ const StagiairesList = ({
               </div>
             </div>
 
-            {/* Date Selector Toggle */}
-            <div className="ml-auto flex items-center">
-              <button
-                onClick={() => setShowDateFilters(!showDateFilters)}
-                className="flex items-center text-xs text-gray-600 hover:text-gray-900 px-2.5 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200"
-              >
-                <ClockIcon className="h-3.5 w-3.5 mr-1.5" />
-                Dates
-                <ChevronDownIcon className={`h-3 w-3 ml-1 transition-transform ${showDateFilters ? 'rotate-180' : ''}`} />
-              </button>
+            <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
+
+            {/* Payment Status Filters */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="text-xs font-medium text-gray-500 uppercase flex items-center mr-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                </svg>
+                Paiement:
+              </div>
               
-              {getActiveFilterCount() > 0 && (
-                <button 
-                  onClick={resetFilters}
-                  className="ml-2 flex items-center text-xs text-gray-600 hover:text-red-700 px-2.5 py-1.5 rounded-md hover:bg-red-50"
+              <div className="flex gap-1.5">
+                <button
+                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                    paymentStatusFilter === '' 
+                      ? 'bg-blue-100 text-blue-700 font-medium' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => handleFilterChange('paymentStatus', '')}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Réinitialiser ({getActiveFilterCount()})
+                  Tous
                 </button>
-              )}
+                <button
+                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                    paymentStatusFilter === 'paid' 
+                      ? 'bg-green-100 text-green-700 font-medium' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => handleFilterChange('paymentStatus', 'paid')}
+                >
+                  💰 Payé
+                </button>
+                <button
+                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                    paymentStatusFilter === 'exempt' 
+                      ? 'bg-blue-100 text-blue-700 font-medium' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => handleFilterChange('paymentStatus', 'exempt')}
+                >
+                  🎫 Dispensé
+                </button>
+              </div>
             </div>
           </div>
 

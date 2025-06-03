@@ -1,7 +1,10 @@
 import React from 'react';
 import { Dialog } from '@headlessui/react';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const ManageOccupantsModal = ({ isOpen, onClose, chambre, residents, onRemoveOccupant }) => {
+  const permissions = usePermissions();
+  
   if (!chambre) return null;
 
   const occupants = chambre.occupants?.map(id => residents.find(r => r.id === id)).filter(Boolean) || [];
@@ -56,15 +59,19 @@ const ManageOccupantsModal = ({ isOpen, onClose, chambre, residents, onRemoveOcc
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => onRemoveOccupant(occupant.id)}
-                      className="ml-4 flex items-center px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-md hover:bg-red-50"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 00-1-1h-4a1 1 00-1 1v3M4 7h16" />
-                      </svg>
-                      Retirer
-                    </button>
+                    
+                    {/* Remove button - only show if user can edit */}
+                    {permissions.canEdit && (
+                      <button
+                        onClick={() => onRemoveOccupant(occupant.id)}
+                        className="ml-4 flex items-center px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-md hover:bg-red-50"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 00-1-1h-4a1 1 00-1 1v3M4 7h16" />
+                        </svg>
+                        Retirer
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -77,15 +84,19 @@ const ManageOccupantsModal = ({ isOpen, onClose, chambre, residents, onRemoveOcc
               >
                 Fermer
               </button>
-              <button
-                onClick={() => {
-                  // You can add the "Assign" action here to open the AssignModal
-                  onClose();
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Assigner des résidents
-              </button>
+              
+              {/* Assign button - only show if user can edit */}
+              {permissions.canEdit && (
+                <button
+                  onClick={() => {
+                    // You can add the "Assign" action here to open the AssignModal
+                    onClose();
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Assigner des résidents
+                </button>
+              )}
             </div>
           </Dialog.Panel>
         </div>
