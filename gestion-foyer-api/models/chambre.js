@@ -69,7 +69,7 @@ const chambreSchema = new mongoose.Schema({
     required: [true, 'Room capacity is required'],
     default: 2
   },
-  nombreLits: {  // Ajout du nouveau champ
+  nombreLits: {
     type: Number,
     default: 2
   },
@@ -94,7 +94,6 @@ const chambreSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  // Renommer en equipements pour correspondre au fronend ou accepter les deux noms
   amenities: {
     type: [String],
     default: []
@@ -108,9 +107,14 @@ const chambreSchema = new mongoose.Schema({
     ref: 'Stagiaire',
     default: []
   },
+  // Enhanced gender field with better validation
   gender: {
     type: String,
-    enum: ['garcon', 'fille'],
+    enum: {
+      values: ['garcon', 'fille', 'mixte'],
+      message: 'Le genre doit être "garcon", "fille" ou "mixte"'
+    },
+    required: [true, 'Le genre de la chambre est requis'],
     default: 'garcon'
   },
   createdAt: {
@@ -127,37 +131,50 @@ const chambreSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Virtual field for occupants
-chambreSchema.virtual('occupantsDetails', {
-  ref: 'Stagiaire',
-  localField: '_id',
-  foreignField: 'chambre'
-});
-
 // Virtual property for occupation count
 chambreSchema.virtual('nombreOccupants').get(function() {
   return this.occupants ? this.occupants.length : 0;
 });
 
-// Modifier la méthode virtuelle tauxOccupation pour vérifier si occupants existe
+// Virtual property for occupation rate
 chambreSchema.virtual('tauxOccupation').get(function() {
   if (!this.capacite) return 0;
-  // Vérifier si this.occupants existe avant d'accéder à sa propriété length
   return (this.occupants && this.occupants.length ? this.occupants.length : 0) / this.capacite * 100;
 });
 
 // Method to check if room is available
 chambreSchema.methods.isAvailable = function() {
-  return this.statut === 'libre';
+  return this.statut === 'libre' || this.statut === 'disponible';
 };
 
-// Middleware pour mapper les statuts entre le frontend et le backend
+// Method to check if room has space
+chambreSchema.methods.hasSpace = function() {
+  const currentOccupants = this.occupants ? this.occupants.length : 0;
+  return currentOccupants < this.capacite;
+};
+
+// Method to check gender compatibility
+chambreSchema.methods.isGenderCompatible = function(stagiaireGender) {
+  return this.gender === 'mixte' || this.gender === stagiaireGender;
+};
+
+// Middleware to update room status based on occupancy
 chambreSchema.pre('save', function(next) {
-  // Mapper les statuts
+  // Map status values
   if (this.statut === 'occupée') this.statut = 'occupee';
-  if (this.statut === 'libre') this.statut = 'libre';
+  if (this.statut === 'libre') this.statut = 'disponible';
   
-  // Copier equipements vers amenities si nécessaire
+  // Update status based on occupancy
+  const occupantCount = this.occupants ? this.occupants.length : 0;
+  if (occupantCount === 0) {
+    this.statut = 'disponible';
+  } else if (occupantCount >= this.capacite) {
+    this.statut = 'occupee';
+  } else {
+    this.statut = 'occupee'; // Partially occupied
+  }
+  
+  // Copy equipements to amenities if needed
   if (this.equipements && this.equipements.length > 0 && (!this.amenities || this.amenities.length === 0)) {
     this.amenities = this.equipements;
   }
@@ -165,15 +182,56 @@ chambreSchema.pre('save', function(next) {
   next();
 });
 
-// Middleware pour adapter les réponses à ce que le frontend attend
+// Middleware to auto-calculate floor and sync beds with capacity
+chambreSchema.pre('save', function(next) {
+  // Auto-calculate floor based on room number
+  if (this.numero) {
+    const numericPart = this.numero.replace(/[^0-9]/g, '');
+    const number = parseInt(numericPart);
+    
+    if (!isNaN(number)) {
+      if (number >= 100 && number <= 199) this.etage = 1;
+      else if (number >= 200 && number <= 299) this.etage = 2;
+      else if (number >= 300 && number <= 399) this.etage = 3;
+      else if (number >= 400 && number <= 499) this.etage = 4;
+      else this.etage = 1; // Default to floor 1
+    }
+  }
+  
+  // Auto-sync number of beds with capacity
+  if (this.capacite && (!this.nombreLits || this.nombreLits !== this.capacite)) {
+    this.nombreLits = this.capacite;
+  }
+  
+  // Map status values
+  if (this.statut === 'occupée') this.statut = 'occupee';
+  if (this.statut === 'libre') this.statut = 'disponible';
+  
+  // Update status based on occupancy
+  const occupantCount = this.occupants ? this.occupants.length : 0;
+  if (occupantCount === 0) {
+    this.statut = 'disponible';
+  } else if (occupantCount >= this.capacite) {
+    this.statut = 'occupee';
+  } else {
+    this.statut = 'occupee'; // Partially occupied
+  }
+  
+  // Copy equipements to amenities if needed
+  if (this.equipements && this.equipements.length > 0 && (!this.amenities || this.amenities.length === 0)) {
+    this.amenities = this.equipements;
+  }
+  
+  next();
+});
+
+// Post-processing for frontend compatibility
 chambreSchema.post('find', function(docs) {
   if (!docs) return;
   docs.forEach(doc => {
-    // Convertir le statut pour le frontend
     if (doc.statut === 'occupee') doc.statut = 'occupée';
     if (doc.statut === 'disponible') doc.statut = 'libre';
     
-    // S'assurer que equipements est rempli
     if (!doc.equipements || doc.equipements.length === 0) {
       doc.equipements = doc.amenities || [];
     }
@@ -183,15 +241,17 @@ chambreSchema.post('find', function(docs) {
 chambreSchema.post('findOne', function(doc) {
   if (!doc) return;
   
-  // Convertir le statut pour le frontend
   if (doc.statut === 'occupee') doc.statut = 'occupée';
   if (doc.statut === 'disponible') doc.statut = 'libre';
   
-  // S'assurer que equipements est rempli
   if (!doc.equipements || doc.equipements.length === 0) {
     doc.equipements = doc.amenities || [];
   }
 });
+
+// Index for better performance
+chambreSchema.index({ gender: 1, statut: 1 });
+chambreSchema.index({ etage: 1, gender: 1 });
 
 const Chambre = mongoose.model('Chambre', chambreSchema);
 

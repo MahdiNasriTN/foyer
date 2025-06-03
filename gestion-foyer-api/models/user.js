@@ -67,12 +67,10 @@ userSchema.pre('save', async function(next) {
   }
 
   try {
-    console.log('Hashing password in pre-save hook');
     // Generate a salt
     const salt = await bcrypt.genSalt(12);
     // Hash the password
     this.password = await bcrypt.hash(this.password, salt);
-    console.log('Password hashed successfully');
     next();
   } catch (error) {
     console.error('Error hashing password:', error);

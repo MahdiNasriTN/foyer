@@ -6,14 +6,12 @@ const resetPassword = async () => {
   try {
     // Connect to database
     await sequelize.authenticate();
-    console.log('Connected to MySQL database');
 
     // Find user by email
     const email = 'admin@example.com'; // Change to your admin email
     const user = await User.findOne({ where: { email } });
     
     if (!user) {
-      console.log('User not found');
       return;
     }
     
@@ -25,11 +23,6 @@ const resetPassword = async () => {
     // Update the user's password
     user.password = hashedPassword;
     await user.save();
-    
-    console.log('Password reset successfully!');
-    console.log(`Email: ${email}`);
-    console.log(`New password: ${newPassword}`);
-    console.log(`Hashed password: ${hashedPassword}`);
     
   } catch (error) {
     console.error('Error:', error);

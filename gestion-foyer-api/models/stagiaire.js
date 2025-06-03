@@ -223,7 +223,75 @@ const stagiaireSchema = new mongoose.Schema({
   chambre: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Chambre'
-  }
+  },
+  // Payment Information
+  payment: {
+    restauration: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      status: {
+        type: String,
+        enum: ['payé', 'dispensé'],
+        default: 'payé'
+      },
+      semester1Price: {
+        type: Number,
+        default: 0
+      },
+      semester2Price: {
+        type: Number,
+        default: 0
+      }
+    },
+    foyer: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      status: {
+        type: String,
+        enum: ['payé', 'dispensé'],
+        default: 'payé'
+      },
+      semester1Price: {
+        type: Number,
+        default: 0
+      },
+      semester2Price: {
+        type: Number,
+        default: 0
+      }
+    },
+    inscription: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      status: {
+        type: String,
+        enum: ['payé', 'dispensé'],
+        default: 'payé'
+      },
+      semester1Price: {
+        type: Number,
+        default: 0
+      },
+      semester2Price: {
+        type: Number,
+        default: 0
+      }
+    },
+    totalAmount: {
+      type: Number,
+      default: 0
+    },
+    lastUpdated: {
+      type: Date,
+      default: Date.now
+    }
+  },
 }, {
   timestamps: true
 });
@@ -260,6 +328,33 @@ stagiaireSchema.pre('save', async function(next) {
 // Add virtual for full name
 stagiaireSchema.virtual('fullName').get(function() {
   return `${this.firstName} ${this.lastName}`;
+});
+
+// Add a pre-save middleware to calculate total amount
+stagiaireSchema.pre('save', function(next) {
+  if (this.payment) {
+    let total = 0;
+    
+    // Calculate restauration total
+    if (this.payment.restauration.enabled && this.payment.restauration.status === 'payé') {
+      total += (this.payment.restauration.semester1Price || 0) + (this.payment.restauration.semester2Price || 0);
+    }
+    
+    // Calculate foyer total
+    if (this.payment.foyer.enabled && this.payment.foyer.status === 'payé') {
+      total += (this.payment.foyer.semester1Price || 0) + (this.payment.foyer.semester2Price || 0);
+    }
+    
+    // Calculate inscription total
+    if (this.payment.inscription.enabled && this.payment.inscription.status === 'payé') {
+      total += (this.payment.inscription.semester1Price || 0) + (this.payment.inscription.semester2Price || 0);
+    }
+    
+    this.payment.totalAmount = total;
+    this.payment.lastUpdated = new Date();
+  }
+  
+  next();
 });
 
 const Stagiaire = mongoose.model('Stagiaire', stagiaireSchema);

@@ -36,21 +36,16 @@ const seedPersonnel = async () => {
   try {
     // Connexion à MongoDB
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/gestion_foyer');
-    console.log('Connected to MongoDB');
     
     // Suppression des données existantes
     await Personnel.deleteMany({});
-    console.log('Existing personnel data cleared');
     
     // Insertion des nouvelles données
     await Personnel.insertMany(personnelData);
-    console.log(`${personnelData.length} personnel records inserted`);
     
     // Déconnexion
     await mongoose.disconnect();
-    console.log('MongoDB connection closed');
     
-    console.log('Personnel seeding completed successfully!');
   } catch (error) {
     console.error('Error seeding personnel data:', error);
     process.exit(1);

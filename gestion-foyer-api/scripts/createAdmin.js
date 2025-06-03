@@ -18,11 +18,8 @@ const question = (query) => new Promise((resolve) => rl.question(query, resolve)
 const createAdmin = async () => {
   try {
     // Connect to MongoDB
-    console.log('Connecting to MongoDB...');
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/gestion_foyer');
-    console.log('\x1b[32m%s\x1b[0m', '✓ Connected to MongoDB successfully');
 
-    console.log('\n==== CRÉATION D\'UN ADMINISTRATEUR ====\n');
 
     // Get input from CLI or use defaults
     const useDefaults = await question('Utiliser les valeurs par défaut? (O/n): ');
@@ -55,7 +52,6 @@ const createAdmin = async () => {
     const adminExists = await User.findOne({ email });
     
     if (adminExists) {
-      console.log('\x1b[33m%s\x1b[0m', `\n⚠️ Un utilisateur avec l'email ${email} existe déjà`);
       
       const updateUser = await question('Voulez-vous mettre à jour cet utilisateur? (o/N): ');
       
@@ -75,11 +71,6 @@ const createAdmin = async () => {
         }
         
         await adminExists.save();
-        console.log('\x1b[32m%s\x1b[0m', `\n✓ Utilisateur mis à jour avec succès!`);
-        console.log('\nDétails de l\'administrateur:');
-        console.log(`- Nom complet: ${adminExists.firstName} ${adminExists.lastName}`);
-        console.log(`- Email: ${adminExists.email}`);
-        console.log(`- Rôle: ${adminExists.role}`);
       }
     } else {
       // Create new admin user
@@ -99,12 +90,6 @@ const createAdmin = async () => {
         }
       });
       
-      console.log('\x1b[32m%s\x1b[0m', '\n✓ Administrateur créé avec succès!');
-      console.log('\nDétails de l\'administrateur:');
-      console.log(`- Nom complet: ${admin.firstName} ${admin.lastName}`);
-      console.log(`- Email: ${admin.email}`);
-      console.log(`- Mot de passe: ${password}`);
-      console.log(`- Rôle: ${admin.role}`);
       
       // Save this info to a file for reference
       const fs = require('fs');
@@ -125,7 +110,6 @@ const createAdmin = async () => {
         `modifiez ce mot de passe après votre première connexion.`
       );
       
-      console.log('\n\x1b[33m%s\x1b[0m', `⚠️ Les identifiants ont été sauvegardés dans: admin-credentials.txt`);
     }
   } catch (error) {
     console.error('\x1b[31m%s\x1b[0m', '\n❌ Erreur lors de la création de l\'administrateur:');
@@ -135,14 +119,12 @@ const createAdmin = async () => {
     rl.close();
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
-      console.log('\nConnexion MongoDB fermée');
     }
   }
 };
 
 // Handle the readline interface closing
 rl.on('close', () => {
-  console.log('\nScript terminé. Au revoir!');
   process.exit(0);
 });
 

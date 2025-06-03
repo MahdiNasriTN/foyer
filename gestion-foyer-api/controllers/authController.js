@@ -80,15 +80,10 @@ exports.login = async (req, res) => {
     }
 
     // 3. DEBUG: Check if password exists in user object
-    console.log('Password field exists:', !!user.password);
     
     // 4. Check if password is correct - USING DIRECT BCRYPT COMPARE
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     
-    // Debug the comparison
-    console.log('Provided password:', password);
-    console.log('Stored password hash exists:', !!user.password);
-    console.log('Password comparison result:', isPasswordCorrect);
 
     if (!isPasswordCorrect) {
       return res.status(401).json({
@@ -221,13 +216,8 @@ exports.updateUserProfile = async (req, res) => {
     // 2. If changing password, check current password
     if (currentPassword && newPassword) {
       // Debug
-      console.log('Password change requested');
-      console.log('Current password field exists:', !!user.password);
-      
-      // DIRECT BCRYPT COMPARISON
       const isCorrectPassword = await bcrypt.compare(currentPassword, user.password);
       
-      console.log('Password comparison result:', isCorrectPassword);
 
       if (!isCorrectPassword) {
         return res.status(400).json({
@@ -238,7 +228,6 @@ exports.updateUserProfile = async (req, res) => {
 
       // 3. Set new password - hash is handled in the pre-save hook
       user.password = newPassword;
-      console.log('New password set, will be hashed by pre-save hook');
     }
 
     // 4. Update user info

@@ -55,7 +55,6 @@ exports.createAdmin = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(`Updating user ${id} with data:`, req.body); // Log the incoming data
     
     // Find the user to update
     const user = await User.findById(id);
@@ -64,7 +63,6 @@ exports.updateUser = async (req, res) => {
     }
     
     // Log the user before changes
-    console.log("User before update:", user);
     
     // Update user fields - explicitly set each field
     if (req.body.firstName) user.firstName = req.body.firstName;
@@ -75,7 +73,6 @@ exports.updateUser = async (req, res) => {
     
     // Explicitly update the role
     if (req.body.role && ['user', 'admin', 'superadmin'].includes(req.body.role)) {
-      console.log(`Changing role from ${user.role} to ${req.body.role}`);
       user.role = req.body.role;
     }
     
@@ -88,7 +85,6 @@ exports.updateUser = async (req, res) => {
     await user.save();
     
     // Log the user after changes
-    console.log("User after update:", user);
     
     // Don't return the password
     const userToReturn = user.toObject();

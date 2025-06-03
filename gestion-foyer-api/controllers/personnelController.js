@@ -3,59 +3,105 @@ const Personnel = require('../models/personnel');
 // Obtenir tous les membres du personnel avec filtrage
 exports.getAllPersonnel = async (req, res) => {
   try {
-    const query = {};
+    const { status, department, role, fonction, search, startDate, endDate } = req.query;
     
-    // Filtrage par statut
-    if (req.query.status && req.query.status !== 'all') {
-      query.statut = req.query.status;
+    console.log('Query parameters received:', req.query);
+    
+    // Start with empty conditions array
+    let conditions = [];
+    
+    // Handle status filter
+    if (status && status !== 'all') {
+      if (status === 'active') {
+        conditions.push({
+          $or: [
+            { status: 'active' },
+            { statut: 'actif' },
+            { isActive: true },
+            { active: true }
+          ]
+        });
+      } else if (status === 'inactive') {
+        conditions.push({
+          $or: [
+            { status: 'inactive' },
+            { statut: 'inactif' },
+            { isActive: false },
+            { active: false }
+          ]
+        });
+      }
     }
     
-    // Filtrage par département
-    if (req.query.department && req.query.department !== 'all') {
-      query.departement = req.query.department;
+    // Handle department filter - check your Personnel model for the correct field name
+    if (department && department !== 'all') {
+      conditions.push({ departement: department }); // or { department: department }
     }
     
-    // Filtrage par rôle
-    if (req.query.role && req.query.role !== 'all') {
-      query.role = req.query.role;
+    // Handle role filter
+    if (role && role !== 'all') {
+      conditions.push({ role: role });
     }
     
-    // Filtrage par date d'embauche
-    if (req.query.startDate && req.query.endDate) {
-      query.dateEmbauche = {
-        $gte: new Date(req.query.startDate),
-        $lte: new Date(req.query.endDate)
-      };
-    } else if (req.query.startDate) {
-      query.dateEmbauche = { $gte: new Date(req.query.startDate) };
-    } else if (req.query.endDate) {
-      query.dateEmbauche = { $lte: new Date(req.query.endDate) };
+    // Handle fonction filter
+    if (fonction && fonction !== 'all') {
+      conditions.push({ fonction: fonction });
     }
     
-    // Recherche par texte
-    if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, 'i');
-      query.$or = [
-        { firstName: searchRegex },
-        { lastName: searchRegex },
-        { email: searchRegex },
-        { poste: searchRegex },
-        { departement: searchRegex }
-      ];
+    // Handle search filter
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      conditions.push({
+        $or: [
+          { firstName: searchRegex },
+          { lastName: searchRegex },
+          { prenom: searchRegex },
+          { nom: searchRegex },
+          { email: searchRegex }
+        ]
+      });
     }
     
-    const personnel = await Personnel.find(query).sort({ createdAt: -1 });
+    // Handle date range filter
+    if (startDate || endDate) {
+      const dateFilter = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate);
+      
+      conditions.push({
+        $or: [
+          { hireDate: dateFilter },
+          { dateEmbauche: dateFilter },
+          { createdAt: dateFilter }
+        ]
+      });
+    }
+    
+    // Build final filter
+    let filter = {};
+    if (conditions.length > 0) {
+      filter = { $and: conditions };
+    }
+    
+    console.log('Final filter object:', JSON.stringify(filter, null, 2));
+    
+    // Execute the query
+    const personnel = await Personnel.find(filter).sort({ createdAt: -1 });
+    
+    console.log(`Found ${personnel.length} personnel members`);
     
     res.status(200).json({
       status: 'success',
       results: personnel.length,
       data: personnel
     });
+    
   } catch (error) {
-    console.error('Error fetching personnel:', error);
+    console.error('Error in getAllPersonnel:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: 'Erreur lors de la récupération du personnel',
+      error: error.message
     });
   }
 };

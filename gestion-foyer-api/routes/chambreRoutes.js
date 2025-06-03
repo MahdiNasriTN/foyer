@@ -332,5 +332,7 @@ router.post('/:id/occupants', chambreController.assignOccupants);
 router.get('/:id/occupants', chambreController.getChambreOccupants);
 router.post('/:id/check-occupants', chambreController.checkOccupantsAvailability);
 router.post('/:id/assign', chambreController.assignOccupants);
+router.get('/:id/available-stagiaires', chambreController.getAvailableStagiairesForRoom);
+router.get('/statistics', chambreController.getRoomStatistics);
 
 module.exports = router;

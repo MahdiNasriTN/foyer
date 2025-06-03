@@ -157,14 +157,13 @@ const buildStagiaireQuery = (queryParams) => {
   return query;
 };
 
-// Fonction pour récupérer tous les stagiaires avec filtres
+// Update the getAllStagiaires function - FIXED VERSION for room assignments
 exports.getAllStagiaires = async (req, res) => {
   try {
     // Construction de la requête MongoDB avec les filtres
     let query = {};
     
     // Log all incoming query parameters
-    console.log('Request query params:', req.query);
     
     // Add search functionality
     if (req.query.search) {
@@ -178,7 +177,6 @@ exports.getAllStagiaires = async (req, res) => {
           { entreprise: searchRegex }
         ]
       };
-      console.log('Added search query:', JSON.stringify(query));
     }
     
     // Filtrage par statut (actif/inactif)
@@ -210,21 +208,50 @@ exports.getAllStagiaires = async (req, res) => {
         : statusQuery;
     }
     
-    // Filtrage par chambre
+    // Filtrage par chambre - COMPLETELY REWRITTEN FOR CORRECT LOGIC
     if (req.query.room === 'withRoom') {
-      const roomQuery = { chambre: { $ne: null } };
+      // Get all stagiaire IDs that are in any room's occupants array
+      const roomsWithOccupants = await Chambre.find({ occupants: { $exists: true, $not: { $size: 0 } } });
+      const stagiaireIdsWithRooms = roomsWithOccupants.flatMap(room => room.occupants);
       
-      // Combine with existing query
-      query = Object.keys(query).length > 0
-        ? { $and: [query, roomQuery] }
-        : roomQuery;
+      if (stagiaireIdsWithRooms.length > 0) {
+        const roomQuery = { _id: { $in: stagiaireIdsWithRooms } };
+        
+        // Combine with existing query
+        query = Object.keys(query).length > 0
+          ? { $and: [query, roomQuery] }
+          : roomQuery;
+      } else {
+        // No stagiaires have rooms, return empty result
+        query = { _id: { $in: [] } };
+      }
         
       // Filtrage par numéro de chambre spécifique
       if (req.query.specificRoom) {
-        query.chambre = req.query.specificRoom;
+        // Find rooms with the specific number
+        const specificRooms = await Chambre.find({ 
+          numero: { $regex: req.query.specificRoom, $options: 'i' } 
+        });
+        const specificStagiaireIds = specificRooms.flatMap(room => room.occupants);
+        
+        if (specificStagiaireIds.length > 0) {
+          const specificRoomQuery = { _id: { $in: specificStagiaireIds } };
+          
+          query = Object.keys(query).length > 0
+            ? { $and: [query, specificRoomQuery] }
+            : specificRoomQuery;
+        } else {
+          // No stagiaires in rooms with that number
+          query = { _id: { $in: [] } };
+        }
       }
     } else if (req.query.room === 'withoutRoom') {
-      const roomQuery = { chambre: null };
+      // Get all stagiaire IDs that are in any room's occupants array
+      const roomsWithOccupants = await Chambre.find({ occupants: { $exists: true, $not: { $size: 0 } } });
+      const stagiaireIdsWithRooms = roomsWithOccupants.flatMap(room => room.occupants);
+      
+      // Find stagiaires NOT in any room
+      const roomQuery = { _id: { $nin: stagiaireIdsWithRooms } };
       
       // Combine with existing query
       query = Object.keys(query).length > 0
@@ -232,7 +259,7 @@ exports.getAllStagiaires = async (req, res) => {
         : roomQuery;
     }
     
-    // Filtrage par sexe
+    // Rest of the filtering logic (gender, session, dates, payment) stays the same...
     if (req.query.gender && req.query.gender !== 'all') {
       const genderQuery = { sexe: req.query.gender };
       
@@ -254,7 +281,6 @@ exports.getAllStagiaires = async (req, res) => {
         cycleValue = 'fev';
       }
       
-      console.log(`Session param: ${req.query.session} -> mapped to cycle value: ${cycleValue}`);
       
       // Create the cycle query
       const cycleQuery = { cycle: cycleValue };
@@ -262,7 +288,6 @@ exports.getAllStagiaires = async (req, res) => {
       // If year is specified, add sessionYear to the query
       if (req.query.year && req.query.year !== 'all') {
         const yearQuery = { sessionYear: req.query.year.toString() };
-        console.log(`Year filter: ${req.query.year}`);
         
         // Combine cycle and year
         const sessionQuery = {
@@ -274,7 +299,6 @@ exports.getAllStagiaires = async (req, res) => {
           ? { $and: [query, sessionQuery] }
           : sessionQuery;
           
-        console.log('Combined cycle + year query:', JSON.stringify(sessionQuery));
       } else {
         // Only filter by cycle without year
         // Combine with existing query
@@ -282,12 +306,10 @@ exports.getAllStagiaires = async (req, res) => {
           ? { $and: [query, cycleQuery] }
           : cycleQuery;
           
-        console.log('Cycle-only query (no year):', JSON.stringify(cycleQuery));
       }
     } else if (req.query.year && req.query.year !== 'all') {
       // If only year is specified (no specific session/cycle)
       const yearQuery = { sessionYear: req.query.year.toString() };
-      console.log(`Year-only filter: ${req.query.year}`);
       
       // Combine with existing query
       query = Object.keys(query).length > 0
@@ -324,54 +346,120 @@ exports.getAllStagiaires = async (req, res) => {
         : dateQuery;
     }
 
+    // Payment filter logic
+    if (req.query.paymentStatus && req.query.paymentStatus !== '') {
+      
+      // Translate English payment status to French for database query
+      let frenchPaymentStatus = '';
+      if (req.query.paymentStatus === 'paid') {
+        frenchPaymentStatus = 'payé';
+      } else if (req.query.paymentStatus === 'exempt') {
+        frenchPaymentStatus = 'dispensé';
+      }
+      
+
+      if (frenchPaymentStatus) {
+        const paymentFilter = {
+          $or: [
+            { 
+              'payment.restauration.enabled': true, 
+              'payment.restauration.status': frenchPaymentStatus 
+            },
+            { 
+              'payment.foyer.enabled': true, 
+              'payment.foyer.status': frenchPaymentStatus 
+            },
+            { 
+              'payment.inscription.enabled': true, 
+              'payment.inscription.status': frenchPaymentStatus 
+            }
+          ]
+        };
+
+
+        // Combine with existing query
+        query = Object.keys(query).length > 0
+          ? { $and: [query, paymentFilter] }
+          : paymentFilter;
+      }
+    }
+
     // Ajouter le tri dans la fonction getAllStagiaires
-    const sortField = req.query.sortBy || 'nom';
+    const sortField = req.query.sortBy || 'createdAt';
     const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
 
     // Log query for debugging
-    console.log('Final query:', JSON.stringify(query, null, 2));
 
-    // Before executing the query, check if there are any stagiaires with the specified cycle
-    const cycleCounts = await Stagiaire.aggregate([
-      { $group: { _id: "$cycle", count: { $sum: 1 } } }
-    ]);
-    console.log('Available cycles in database:', cycleCounts);
-    
-    // If filtering by cycle, check specifically for that cycle
-    if (req.query.session && req.query.session !== 'all') {
-      let cycleValue;
-      if (req.query.session === 'septembre') cycleValue = 'sep';
-      else if (req.query.session === 'novembre') cycleValue = 'nov';
-      else if (req.query.session === 'fevrier') cycleValue = 'fev';
-      
-      const cycleCheck = await Stagiaire.find({ cycle: cycleValue }).limit(1);
-      console.log(`Quick check for cycle '${cycleValue}':`, cycleCheck.length > 0 ? 'Found' : 'Not found');
-    }
-    
-    // Exécution de la requête
-    const stagiaires = await Stagiaire.find(query)
-      .populate('chambre')
+    // EXECUTE QUERY - NO POPULATION NEEDED
+    let stagiaires = await Stagiaire.find(query)
       .sort({ [sortField]: sortOrder });
 
-    console.log(`Query returned ${stagiaires.length} stagiaires`);
+    
+    // GET ALL ROOMS TO MAP STAGIAIRES TO ROOMS
+    const allRooms = await Chambre.find({});
+    
+    // Create a map of stagiaire ID to room info
+    const stagiaireToRoomMap = {};
+    allRooms.forEach(room => {
+      if (room.occupants && room.occupants.length > 0) {
+        room.occupants.forEach(occupantId => {
+          stagiaireToRoomMap[occupantId.toString()] = {
+            numero: room.numero,
+            etage: room.etage,
+            capacite: room.capacite,
+            type: room.type,
+            statut: room.statut,
+            _id: room._id
+          };
+        });
+      }
+    });
+    
+    
+    // Transform stagiaires data for frontend compatibility - ENHANCED VERSION
+    const transformedStagiaires = stagiaires.map(stagiaire => {
+      const transformed = { ...stagiaire.toObject() };
+      
+      // Handle payment data
+      if (stagiaire.payment) {
+        transformed.restauration = stagiaire.payment.restauration?.enabled || false;
+        transformed.foyer = stagiaire.payment.foyer?.enabled || false;
+        transformed.inscription = stagiaire.payment.inscription?.enabled || false;
+        
+        transformed.restaurationStatus = stagiaire.payment.restauration?.status || 'payé';
+        transformed.foyerStatus = stagiaire.payment.foyer?.status || 'payé';
+        transformed.inscriptionStatus = stagiaire.payment.inscription?.status || 'payé';
+      }
+      
+      // Handle room assignment - CORRECTED VERSION USING MAPPING
+      const roomInfo = stagiaireToRoomMap[stagiaire._id.toString()];
+      if (roomInfo) {
+        transformed.chambreInfo = roomInfo;
+        transformed.chambreNumero = roomInfo.numero;
+      } else {
+        // No room assigned
+        transformed.chambreNumero = null;
+        transformed.chambreInfo = null;
+      }
+      
+      return transformed;
+    });
     
     // If no results, do a sanity check on the database
-    if (stagiaires.length === 0) {
+    if (transformedStagiaires.length === 0) {
       const totalCount = await Stagiaire.countDocuments({});
-      console.log(`Total stagiaires in database: ${totalCount}`);
       
       // Show a sample of the data structure
       if (totalCount > 0) {
         const sample = await Stagiaire.findOne({}).lean();
-        console.log('Sample stagiaire data structure:', sample);
       }
     }
 
     res.status(200).json({
       status: 'success',
-      results: stagiaires.length,
+      results: transformedStagiaires.length,
       data: {
-        stagiaires
+        stagiaires: transformedStagiaires
       }
     });
   } catch (error) {
@@ -403,7 +491,6 @@ exports.getStagiaire = async (req, res) => {
     }
 
     // Regular case - fetch a specific stagiaire
-    console.log('Fetching stagiaire with ID:', req.params.id);
     const stagiaire = await Stagiaire.findById(req.params.id)
       .populate('chambre', 'numero capacite etage');
     
@@ -430,39 +517,53 @@ exports.getStagiaire = async (req, res) => {
 // Ajouter cette fonction pour créer des stagiaires internes/externes sans distinction
 exports.createStagiaire = async (req, res) => {
   try {
-    // Check if a stagiaire with this email already exists
-    const existingStagiaire = await Stagiaire.findOne({ email: req.body.email });
-    if (existingStagiaire) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'A stagiaire with this email already exists'
-      });
+    const stagiaireData = req.body;
+    
+    // Process payment data
+    if (stagiaireData.restauration !== undefined || stagiaireData.foyer !== undefined || stagiaireData.inscription !== undefined) {
+      stagiaireData.payment = {
+        restauration: {
+          enabled: stagiaireData.restauration || false,
+          status: stagiaireData.restaurationStatus || 'payé',
+          semester1Price: parseFloat(stagiaireData.restaurationSemester1) || 0,
+          semester2Price: parseFloat(stagiaireData.restaurationSemester2) || 0
+        },
+        foyer: {
+          enabled: stagiaireData.foyer || false,
+          status: stagiaireData.foyerStatus || 'payé',
+          semester1Price: parseFloat(stagiaireData.foyerSemester1) || 0,
+          semester2Price: parseFloat(stagiaireData.foyerSemester2) || 0
+        },
+        inscription: {
+          enabled: stagiaireData.inscription || false,
+          status: stagiaireData.inscriptionStatus || 'payé',
+          semester1Price: parseFloat(stagiaireData.inscriptionSemester1) || 0,
+          semester2Price: parseFloat(stagiaireData.inscriptionSemester2) || 0
+        }
+      };
+      
+      // Remove the flat payment fields from the main object
+      delete stagiaireData.restauration;
+      delete stagiaireData.foyer;
+      delete stagiaireData.inscription;
+      delete stagiaireData.restaurationStatus;
+      delete stagiaireData.foyerStatus;
+      delete stagiaireData.inscriptionStatus;
+      delete stagiaireData.restaurationSemester1;
+      delete stagiaireData.restaurationSemester2;
+      delete stagiaireData.foyerSemester1;
+      delete stagiaireData.foyerSemester2;
+      delete stagiaireData.inscriptionSemester1;
+      delete stagiaireData.inscriptionSemester2;
     }
     
-    // If chambre is provided, verify it exists
-    if (req.body.chambre) {
-      const chambre = await Chambre.findById(req.body.chambre);
-      if (!chambre) {
-        return res.status(400).json({
-          status: 'fail',
-          message: 'Invalid chambre ID provided'
-        });
-      }
-    }
-    
-    // Add default values for cycle and sessionYear if not provided
-    const stagiaireData = {
-      ...req.body,
-      cycle: req.body.cycle || 'sep',
-      sessionYear: req.body.sessionYear || new Date().getFullYear().toString()
-    };
-    
-    // Create new stagiaire - identifier will be auto-generated by pre-save hook
     const stagiaire = await Stagiaire.create(stagiaireData);
-
+    
     res.status(201).json({
       status: 'success',
-      data: { stagiaire }
+      data: {
+        stagiaire
+      }
     });
   } catch (error) {
     console.error('Error creating stagiaire:', error);
@@ -547,38 +648,52 @@ exports.createExternStagiaire = async (req, res) => {
 // Update a stagiaire
 exports.updateStagiaire = async (req, res) => {
   try {
-    // If trying to update email, check if it already exists
-    if (req.body.email) {
-      const existingStagiaire = await Stagiaire.findOne({ 
-        email: req.body.email,
-        _id: { $ne: req.params.id }
-      });
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    // Process payment data for updates
+    if (updateData.restauration !== undefined || updateData.foyer !== undefined || updateData.inscription !== undefined) {
+      updateData.payment = {
+        restauration: {
+          enabled: updateData.restauration || false,
+          status: updateData.restaurationStatus || 'payé',
+          semester1Price: parseFloat(updateData.restaurationSemester1) || 0,
+          semester2Price: parseFloat(updateData.restaurationSemester2) || 0
+        },
+        foyer: {
+          enabled: updateData.foyer || false,
+          status: updateData.foyerStatus || 'payé',
+          semester1Price: parseFloat(updateData.foyerSemester1) || 0,
+          semester2Price: parseFloat(updateData.foyerSemester2) || 0
+        },
+        inscription: {
+          enabled: updateData.inscription || false,
+          status: updateData.inscriptionStatus || 'payé',
+          semester1Price: parseFloat(updateData.inscriptionSemester1) || 0,
+          semester2Price: parseFloat(updateData.inscriptionSemester2) || 0
+        }
+      };
       
-      if (existingStagiaire) {
-        return res.status(400).json({
-          status: 'fail',
-          message: 'A stagiaire with this email already exists'
-        });
-      }
+      // Remove the flat payment fields
+      delete updateData.restauration;
+      delete updateData.foyer;
+      delete updateData.inscription;
+      delete updateData.restaurationStatus;
+      delete updateData.foyerStatus;
+      delete updateData.inscriptionStatus;
+      delete updateData.restaurationSemester1;
+      delete updateData.restaurationSemester2;
+      delete updateData.foyerSemester1;
+      delete updateData.foyerSemester2;
+      delete updateData.inscriptionSemester1;
+      delete updateData.inscriptionSemester2;
     }
     
-    // If chambre is provided, verify it exists
-    if (req.body.chambre) {
-      const chambre = await Chambre.findById(req.body.chambre);
-      if (!chambre) {
-        return res.status(400).json({
-          status: 'fail',
-          message: 'Invalid chambre ID provided'
-        });
-      }
-    }
-    
-    // Update stagiaire
     const stagiaire = await Stagiaire.findByIdAndUpdate(
-      req.params.id,
-      req.body,
+      id,
+      updateData,
       { new: true, runValidators: true }
-    ).populate('chambre', 'numero capacite');
+    );
     
     if (!stagiaire) {
       return res.status(404).json({
@@ -586,10 +701,12 @@ exports.updateStagiaire = async (req, res) => {
         message: 'Stagiaire not found'
       });
     }
-
+    
     res.status(200).json({
       status: 'success',
-      data: { stagiaire }
+      data: {
+        stagiaire
+      }
     });
   } catch (error) {
     console.error('Error updating stagiaire:', error);
@@ -660,14 +777,12 @@ exports.searchStagiaires = async (req, res) => {
 // Update this function to properly check both chambre and chambreId fields
 exports.getAvailableStagiaires = async (req, res) => {
   try {
-    console.log("[getAvailableStagiaires] Fetching available stagiaires");
     
     // Find stagiaires where chambreId is not set
     const availableStagiaires = await Stagiaire.find({
       chambreId: { $exists: false }
     }).sort({ firstName: 1, lastName: 1 });
     
-    console.log(`[getAvailableStagiaires] Found ${availableStagiaires.length} available stagiaires`);
     
     res.status(200).json({
       status: 'success',
@@ -684,7 +799,6 @@ exports.getAvailableStagiaires = async (req, res) => {
 
 // Export multiple stagiaires
 exports.exportStagiaires = async (req, res) => {
-  console.log("exportStagiaires controller called with query:", req.query);
   try {
     // Apply the same filtering logic as in getAllStagiaires
     const query = buildStagiaireQuery(req.query);
@@ -700,7 +814,6 @@ exports.exportStagiaires = async (req, res) => {
       stagiaires = await Stagiaire.find(query).populate('chambre');
     }
     
-    console.log(`Found ${stagiaires.length} stagiaires to export`);
     
     // Create Excel workbook
     const workbook = new Excel.Workbook();
@@ -830,7 +943,6 @@ exports.exportStagiaires = async (req, res) => {
 exports.exportStagiaire = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('Exporting stagiaire with ID:', id);
     
     // Get stagiaire from database
     const stagiaire = await Stagiaire.findById(id).populate('chambre');
@@ -997,4 +1109,181 @@ exports.exportStagiaire = async (req, res) => {
   }
 };
 
-// Add this new endpoint to check for occupancy conflicts
+// Update this function to transform payment data for editing
+exports.getStagiaireById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const stagiaire = await Stagiaire.findById(id);
+    
+    if (!stagiaire) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Stagiaire not found'
+      });
+    }
+
+    // Transform payment data back to flat structure for frontend editing
+    let transformedStagiaire = stagiaire.toObject();
+    
+    if (stagiaire.payment) {
+      // Add flat payment fields for frontend compatibility
+      transformedStagiaire.restauration = stagiaire.payment.restauration?.enabled || false;
+      transformedStagiaire.foyer = stagiaire.payment.foyer?.enabled || false;
+      transformedStagiaire.inscription = stagiaire.payment.inscription?.enabled || false;
+      
+      transformedStagiaire.restaurationStatus = stagiaire.payment.restauration?.status || 'payé';
+      transformedStagiaire.foyerStatus = stagiaire.payment.foyer?.status || 'payé';
+      transformedStagiaire.inscriptionStatus = stagiaire.payment.inscription?.status || 'payé';
+      
+      transformedStagiaire.restaurationSemester1 = stagiaire.payment.restauration?.semester1Price || '';
+      transformedStagiaire.restaurationSemester2 = stagiaire.payment.restauration?.semester2Price || '';
+      transformedStagiaire.foyerSemester1 = stagiaire.payment.foyer?.semester1Price || '';
+      transformedStagiaire.foyerSemester2 = stagiaire.payment.foyer?.semester2Price || '';
+      transformedStagiaire.inscriptionSemester1 = stagiaire.payment.inscription?.semester1Price || '';
+      transformedStagiaire.inscriptionSemester2 = stagiaire.payment.inscription?.semester2Price || '';
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        stagiaire: transformedStagiaire
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching stagiaire:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+// Update the getStagiaires function - fix the payment filter logic
+exports.getStagiaires = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    
+    // Extract filters from query parameters
+    const {
+      search = '',
+      status = 'all',
+      room = 'all',
+      specificRoom = '',
+      gender = 'all',
+      session = 'all',
+      year = 'all',
+      startDate,
+      endDate,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      paymentStatus = ''
+    } = req.query;
+
+    // Translate English payment status to French for database query
+    let frenchPaymentStatus = '';
+    if (paymentStatus === 'paid') {
+      frenchPaymentStatus = 'payé';
+    } else if (paymentStatus === 'exempt') {
+      frenchPaymentStatus = 'dispensé';
+    }
+    
+    // Build the base filter using existing buildStagiaireQuery function
+    let filter = buildStagiaireQuery({
+      search,
+      status,
+      room,
+      specificRoom,
+      gender,
+      session,
+      year,
+      startDate,
+      endDate
+    });
+
+    // Add payment filter logic with French status
+    if (frenchPaymentStatus && frenchPaymentStatus !== '') {
+      const paymentFilter = {
+        $or: [
+          { 
+            'payment.restauration.enabled': true, 
+            'payment.restauration.status': frenchPaymentStatus 
+          },
+          { 
+            'payment.foyer.enabled': true, 
+            'payment.foyer.status': frenchPaymentStatus 
+          },
+          { 
+            'payment.inscription.enabled': true, 
+            'payment.inscription.status': frenchPaymentStatus 
+          }
+        ]
+      };
+
+
+      // Combine with existing filter properly
+      if (Object.keys(filter).length > 0) {
+        filter = { $and: [filter, paymentFilter] };
+      } else {
+        filter = paymentFilter;
+      }
+    }
+
+    // Build sort object
+    const sortObj = {};
+    sortObj[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+    // Execute query
+    const [stagiaires, total] = await Promise.all([
+      Stagiaire.find(filter)
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Stagiaire.countDocuments(filter)
+    ]);
+
+    if (stagiaires.length > 0) {
+    }
+
+    // Transform stagiaires data for frontend compatibility
+    const transformedStagiaires = stagiaires.map(stagiaire => {
+      const transformed = { ...stagiaire };
+      
+      if (stagiaire.payment) {
+        transformed.restauration = stagiaire.payment.restauration?.enabled || false;
+        transformed.foyer = stagiaire.payment.foyer?.enabled || false;
+        transformed.inscription = stagiaire.payment.inscription?.enabled || false;
+        
+        transformed.restaurationStatus = stagiaire.payment.restauration?.status || 'payé';
+        transformed.foyerStatus = stagiaire.payment.foyer?.status || 'payé';
+        transformed.inscriptionStatus = stagiaire.payment.inscription?.status || 'payé';
+      }
+      
+      return transformed;
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    res.status(200).json({
+      status: 'success',
+      results: transformedStagiaires.length,
+      data: {
+        stagiaires: transformedStagiaires,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: total,
+          itemsPerPage: limit
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching stagiaires:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
