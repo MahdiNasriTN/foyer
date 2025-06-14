@@ -1,5 +1,6 @@
 const { Stagiaire, Chambre } = require('../models');
 const Excel = require('exceljs'); // You'll need to install this
+const mongoose = require('mongoose');
 
 // Add this helper function at the top of your file, right after the imports
 const buildStagiaireQuery = (queryParams) => {
@@ -29,7 +30,6 @@ const buildStagiaireQuery = (queryParams) => {
       ]
     };
     
-    // Combine with existing query
     query = queryParams.search 
       ? { $and: [query, statusQuery] }
       : statusQuery;
@@ -42,7 +42,6 @@ const buildStagiaireQuery = (queryParams) => {
       ]
     };
     
-    // Combine with existing query
     query = queryParams.search 
       ? { $and: [query, statusQuery] }
       : statusQuery;
@@ -52,19 +51,16 @@ const buildStagiaireQuery = (queryParams) => {
   if (queryParams.room === 'withRoom') {
     const roomQuery = { chambre: { $ne: null } };
     
-    // Combine with existing query
     query = Object.keys(query).length > 0
       ? { $and: [query, roomQuery] }
       : roomQuery;
       
-    // Filtrage par numéro de chambre spécifique
     if (queryParams.specificRoom) {
       query.chambre = queryParams.specificRoom;
     }
   } else if (queryParams.room === 'withoutRoom') {
     const roomQuery = { chambre: null };
     
-    // Combine with existing query
     query = Object.keys(query).length > 0
       ? { $and: [query, roomQuery] }
       : roomQuery;
@@ -74,14 +70,15 @@ const buildStagiaireQuery = (queryParams) => {
   if (queryParams.gender && queryParams.gender !== 'all') {
     const genderQuery = { sexe: queryParams.gender };
     
-    // Combine with existing query
     query = Object.keys(query).length > 0
       ? { $and: [query, genderQuery] }
       : genderQuery;
   }
   
-  // Filtrage par session (cycle) et année
+  // FIXED: Filtrage par session (cycle) et année - WITH DEBUGGING
   if (queryParams.session && queryParams.session !== 'all') {
+    console.log('[buildStagiaireQuery] Session param:', queryParams.session);
+    
     // Map the session parameter to the cycle field values
     let cycleValue;
     if (queryParams.session === 'septembre') {
@@ -92,67 +89,38 @@ const buildStagiaireQuery = (queryParams) => {
       cycleValue = 'fev';
     }
     
-    // Create the cycle query
-    const cycleQuery = { cycle: cycleValue };
+    console.log('[buildStagiaireQuery] Mapped cycleValue:', cycleValue);
     
-    // If year is specified, add sessionYear to the query
-    if (queryParams.year && queryParams.year !== 'all') {
-      const yearQuery = { sessionYear: queryParams.year.toString() };
+    if (cycleValue) {
+      let sessionQuery = { cycle: cycleValue };
       
-      // Combine cycle and year
-      const sessionQuery = {
-        $and: [cycleQuery, yearQuery]
-      };
+      // If year is specified, add sessionYear to the query
+      if (queryParams.year && queryParams.year !== 'all') {
+        sessionQuery = {
+          cycle: cycleValue,
+          sessionYear: queryParams.year.toString()
+        };
+      }
+      
+      console.log('[buildStagiaireQuery] Session query:', JSON.stringify(sessionQuery));
       
       // Combine with existing query
       query = Object.keys(query).length > 0
         ? { $and: [query, sessionQuery] }
         : sessionQuery;
-    } else {
-      // Only filter by cycle without year
-      // Combine with existing query
-      query = Object.keys(query).length > 0
-        ? { $and: [query, cycleQuery] }
-        : cycleQuery;
     }
   } else if (queryParams.year && queryParams.year !== 'all') {
     // If only year is specified (no specific session/cycle)
     const yearQuery = { sessionYear: queryParams.year.toString() };
     
-    // Combine with existing query
+    console.log('[buildStagiaireQuery] Year-only query:', JSON.stringify(yearQuery));
+    
     query = Object.keys(query).length > 0
       ? { $and: [query, yearQuery] }
       : yearQuery;
   }
   
-  // Filtrage par dates
-  if (queryParams.startDate && queryParams.endDate) {
-    const dateQuery = {
-      dateArrivee: {
-        $gte: new Date(queryParams.startDate),
-        $lte: new Date(queryParams.endDate)
-      }
-    };
-    
-    // Combine with existing query
-    query = Object.keys(query).length > 0
-      ? { $and: [query, dateQuery] }
-      : dateQuery;
-  } else if (queryParams.startDate) {
-    const dateQuery = { dateArrivee: { $gte: new Date(queryParams.startDate) } };
-    
-    // Combine with existing query
-    query = Object.keys(query).length > 0
-      ? { $and: [query, dateQuery] }
-      : dateQuery;
-  } else if (queryParams.endDate) {
-    const dateQuery = { dateArrivee: { $lte: new Date(queryParams.endDate) } };
-    
-    // Combine with existing query
-    query = Object.keys(query).length > 0
-      ? { $and: [query, dateQuery] }
-      : dateQuery;
-  }
+  console.log('[buildStagiaireQuery] Final query:', JSON.stringify(query, null, 2));
   
   return query;
 };
@@ -163,7 +131,12 @@ exports.getAllStagiaires = async (req, res) => {
     // Construction de la requête MongoDB avec les filtres
     let query = {};
     
+    // Add sorting parameters - FIX FOR THE ERROR
+    const sortField = req.query.sortBy || 'createdAt';
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+    
     // Log all incoming query parameters
+    console.log('Query parameters received:', req.query);
     
     // Add search functionality
     if (req.query.search) {
@@ -208,38 +181,107 @@ exports.getAllStagiaires = async (req, res) => {
         : statusQuery;
     }
     
-    // Filtrage par chambre - COMPLETELY REWRITTEN FOR CORRECT LOGIC
+    // Filtrage par chambre - FIXED ObjectId usage
     if (req.query.room === 'withRoom') {
       // Get all stagiaire IDs that are in any room's occupants array
-      const roomsWithOccupants = await Chambre.find({ occupants: { $exists: true, $not: { $size: 0 } } });
-      const stagiaireIdsWithRooms = roomsWithOccupants.flatMap(room => room.occupants);
+      const roomsWithOccupants = await Chambre.find({ 
+        occupants: { $exists: true, $not: { $size: 0 } } 
+      });
+      
+      console.log('Rooms with occupants found:', roomsWithOccupants.length);
+      
+      const stagiaireIdsWithRooms = [];
+      roomsWithOccupants.forEach(room => {
+        if (room.occupants && room.occupants.length > 0) {
+          room.occupants.forEach(occupantId => {
+            if (occupantId) {
+              stagiaireIdsWithRooms.push(occupantId);
+            }
+          });
+        }
+      });
+      
+      console.log('Stagiaire IDs with rooms:', stagiaireIdsWithRooms.length);
       
       if (stagiaireIdsWithRooms.length > 0) {
-        const roomQuery = { _id: { $in: stagiaireIdsWithRooms } };
+        // FIXED: Use new mongoose.Types.ObjectId() or mongoose.Types.ObjectId.isValid()
+        const validObjectIds = stagiaireIdsWithRooms.map(id => {
+          try {
+            // Try to convert to ObjectId - use 'new' keyword
+            return new mongoose.Types.ObjectId(id);
+          } catch (error) {
+            console.warn(`Invalid ObjectId: ${id}`);
+            return null;
+          }
+        }).filter(id => id !== null);
         
-        // Combine with existing query
-        query = Object.keys(query).length > 0
-          ? { $and: [query, roomQuery] }
-          : roomQuery;
+        console.log('Valid ObjectIds:', validObjectIds.length);
+        
+        if (validObjectIds.length > 0) {
+          const roomQuery = { 
+            _id: { $in: validObjectIds } 
+          };
+          
+          // Combine with existing query
+          query = Object.keys(query).length > 0
+            ? { $and: [query, roomQuery] }
+            : roomQuery;
+        } else {
+          // No valid ObjectIds, return empty result
+          query = { _id: { $in: [] } };
+        }
       } else {
         // No stagiaires have rooms, return empty result
         query = { _id: { $in: [] } };
       }
         
       // Filtrage par numéro de chambre spécifique
-      if (req.query.specificRoom) {
+      if (req.query.specificRoom && req.query.specificRoom.trim() !== '') {
+        console.log('Filtering by specific room:', req.query.specificRoom);
+        
         // Find rooms with the specific number
         const specificRooms = await Chambre.find({ 
-          numero: { $regex: req.query.specificRoom, $options: 'i' } 
+          numero: { $regex: req.query.specificRoom.trim(), $options: 'i' } 
         });
-        const specificStagiaireIds = specificRooms.flatMap(room => room.occupants);
+        
+        console.log('Specific rooms found:', specificRooms.length);
+        
+        const specificStagiaireIds = [];
+        specificRooms.forEach(room => {
+          if (room.occupants && room.occupants.length > 0) {
+            room.occupants.forEach(occupantId => {
+              if (occupantId) {
+                specificStagiaireIds.push(occupantId);
+              }
+            });
+          }
+        });
+        
+        console.log('Stagiaires in specific rooms:', specificStagiaireIds.length);
         
         if (specificStagiaireIds.length > 0) {
-          const specificRoomQuery = { _id: { $in: specificStagiaireIds } };
+          // FIXED: Use new mongoose.Types.ObjectId()
+          const validSpecificObjectIds = specificStagiaireIds.map(id => {
+            try {
+              return new mongoose.Types.ObjectId(id);
+            } catch (error) {
+              console.warn(`Invalid ObjectId in specific room filter: ${id}`);
+              return null;
+            }
+          }).filter(id => id !== null);
           
-          query = Object.keys(query).length > 0
-            ? { $and: [query, specificRoomQuery] }
-            : specificRoomQuery;
+          if (validSpecificObjectIds.length > 0) {
+            const specificRoomQuery = { 
+              _id: { $in: validSpecificObjectIds } 
+            };
+            
+            query = Object.keys(query).length > 0
+              ? { $and: [query, specificRoomQuery] }
+              : specificRoomQuery;
+          } else {
+            // No valid ObjectIds for specific rooms
+            query = { _id: { $in: [] } };
+          }
         } else {
           // No stagiaires in rooms with that number
           query = { _id: { $in: [] } };
@@ -247,19 +289,50 @@ exports.getAllStagiaires = async (req, res) => {
       }
     } else if (req.query.room === 'withoutRoom') {
       // Get all stagiaire IDs that are in any room's occupants array
-      const roomsWithOccupants = await Chambre.find({ occupants: { $exists: true, $not: { $size: 0 } } });
-      const stagiaireIdsWithRooms = roomsWithOccupants.flatMap(room => room.occupants);
+      const roomsWithOccupants = await Chambre.find({ 
+        occupants: { $exists: true, $not: { $size: 0 } } 
+      });
       
-      // Find stagiaires NOT in any room
-      const roomQuery = { _id: { $nin: stagiaireIdsWithRooms } };
+      console.log('Rooms with occupants found for exclusion:', roomsWithOccupants.length);
       
-      // Combine with existing query
-      query = Object.keys(query).length > 0
-        ? { $and: [query, roomQuery] }
-        : roomQuery;
+      const stagiaireIdsWithRooms = [];
+      roomsWithOccupants.forEach(room => {
+        if (room.occupants && room.occupants.length > 0) {
+          room.occupants.forEach(occupantId => {
+            if (occupantId) {
+              stagiaireIdsWithRooms.push(occupantId);
+            }
+          });
+        }
+      });
+      
+      console.log('Stagiaire IDs to exclude (with rooms):', stagiaireIdsWithRooms.length);
+      
+      if (stagiaireIdsWithRooms.length > 0) {
+        // FIXED: Use new mongoose.Types.ObjectId()
+        const validObjectIds = stagiaireIdsWithRooms.map(id => {
+          try {
+            return new mongoose.Types.ObjectId(id);
+          } catch (error) {
+            console.warn(`Invalid ObjectId in withoutRoom filter: ${id}`);
+            return null;
+          }
+        }).filter(id => id !== null);
+        
+        // Find stagiaires NOT in any room
+        const roomQuery = { 
+          _id: { $nin: validObjectIds } 
+        };
+        
+        // Combine with existing query
+        query = Object.keys(query).length > 0
+          ? { $and: [query, roomQuery] }
+          : roomQuery;
+      }
+      // If no stagiaires have rooms, all stagiaires are without rooms (no additional filter needed)
     }
     
-    // Rest of the filtering logic (gender, session, dates, payment) stays the same...
+    // Filtrage par sexe
     if (req.query.gender && req.query.gender !== 'all') {
       const genderQuery = { sexe: req.query.gender };
       
@@ -270,6 +343,9 @@ exports.getAllStagiaires = async (req, res) => {
     }
     
     // Filtrage par session (cycle) et année
+    console.log('Session filter - req.query.session:', req.query.session);
+    console.log('Year filter - req.query.year:', req.query.year);
+    
     if (req.query.session && req.query.session !== 'all') {
       // Map the session parameter to the cycle field values
       let cycleValue;
@@ -281,40 +357,40 @@ exports.getAllStagiaires = async (req, res) => {
         cycleValue = 'fev';
       }
       
+      console.log('Mapped cycleValue:', cycleValue);
       
-      // Create the cycle query
-      const cycleQuery = { cycle: cycleValue };
-      
-      // If year is specified, add sessionYear to the query
-      if (req.query.year && req.query.year !== 'all') {
-        const yearQuery = { sessionYear: req.query.year.toString() };
+      if (cycleValue) {
+        let sessionQuery = { cycle: cycleValue };
         
-        // Combine cycle and year
-        const sessionQuery = {
-          $and: [cycleQuery, yearQuery]
-        };
+        // If year is specified, add sessionYear to the query
+        if (req.query.year && req.query.year !== 'all') {
+          sessionQuery = {
+            cycle: cycleValue,
+            sessionYear: req.query.year.toString()
+          };
+        }
+        
+        console.log('Session query to be applied:', JSON.stringify(sessionQuery));
         
         // Combine with existing query
-        query = Object.keys(query).length > 0
-          ? { $and: [query, sessionQuery] }
-          : sessionQuery;
-          
-      } else {
-        // Only filter by cycle without year
-        // Combine with existing query
-        query = Object.keys(query).length > 0
-          ? { $and: [query, cycleQuery] }
-          : cycleQuery;
-          
+        if (Object.keys(query).length > 0) {
+          query = { $and: [query, sessionQuery] };
+        } else {
+          query = sessionQuery;
+        }
       }
     } else if (req.query.year && req.query.year !== 'all') {
       // If only year is specified (no specific session/cycle)
       const yearQuery = { sessionYear: req.query.year.toString() };
       
+      console.log('Year-only query:', JSON.stringify(yearQuery));
+      
       // Combine with existing query
-      query = Object.keys(query).length > 0
-        ? { $and: [query, yearQuery] }
-        : yearQuery;
+      if (Object.keys(query).length > 0) {
+        query = { $and: [query, yearQuery] };
+      } else {
+        query = yearQuery;
+      }
     }
     
     // Filtrage par dates
@@ -326,74 +402,173 @@ exports.getAllStagiaires = async (req, res) => {
         }
       };
       
-      // Combine with existing query
       query = Object.keys(query).length > 0
         ? { $and: [query, dateQuery] }
         : dateQuery;
     } else if (req.query.startDate) {
       const dateQuery = { dateArrivee: { $gte: new Date(req.query.startDate) } };
       
-      // Combine with existing query
       query = Object.keys(query).length > 0
         ? { $and: [query, dateQuery] }
         : dateQuery;
     } else if (req.query.endDate) {
       const dateQuery = { dateArrivee: { $lte: new Date(req.query.endDate) } };
       
-      // Combine with existing query
       query = Object.keys(query).length > 0
         ? { $and: [query, dateQuery] }
         : dateQuery;
     }
 
-    // Payment filter logic
+    // Payment Status Filtering with Trimester Support - ENHANCED VERSION
     if (req.query.paymentStatus && req.query.paymentStatus !== '') {
+      let paymentQuery = {};
       
-      // Translate English payment status to French for database query
-      let frenchPaymentStatus = '';
+      console.log('Payment status filter requested:', req.query.paymentStatus);
+      console.log('Trimester filters:', {
+        trimester1: req.query.trimester1,
+        trimester2: req.query.trimester2,
+        trimester3: req.query.trimester3
+      });
+      
+      // Get selected trimesters
+      const selectedTrimesters = [];
+      if (req.query.trimester1 === 'true') selectedTrimesters.push('semester1Price');
+      if (req.query.trimester2 === 'true') selectedTrimesters.push('semester2Price');
+      if (req.query.trimester3 === 'true') selectedTrimesters.push('semester3Price');
+      
       if (req.query.paymentStatus === 'paid') {
-        frenchPaymentStatus = 'payé';
+        if (selectedTrimesters.length > 0) {
+          // Filter by specific trimesters that are paid (price > 0)
+          const trimesterConditions = [];
+          
+          selectedTrimesters.forEach(semester => {
+            trimesterConditions.push({
+              'payment.restaurationFoyer.enabled': true,
+              'payment.restaurationFoyer.status': 'payé',
+              [`payment.restaurationFoyer.${semester}`]: { $gt: 0 }
+            });
+            trimesterConditions.push({
+              'payment.inscription.enabled': true,
+              'payment.inscription.status': 'payé',
+              'payment.inscription.annualPrice': { $gt: 0 }
+            });
+          });
+          
+          paymentQuery = { $or: trimesterConditions };
+        } else {
+          // No trimester specified, show all paid
+          paymentQuery = {
+            $or: [
+              {
+                'payment.restaurationFoyer.enabled': true,
+                'payment.restaurationFoyer.status': 'payé'
+              },
+              {
+                'payment.inscription.enabled': true,
+                'payment.inscription.status': 'payé'
+              }
+            ]
+          };
+        }
+      } else if (req.query.paymentStatus === 'unpaid') {
+        if (selectedTrimesters.length > 0) {
+          // Filter by specific trimesters that are unpaid
+          const trimesterConditions = [];
+          
+          selectedTrimesters.forEach(semester => {
+            trimesterConditions.push({
+              'payment.restaurationFoyer.enabled': true,
+              'payment.restaurationFoyer.status': 'non payé',
+              [`payment.restaurationFoyer.${semester}`]: { $gt: 0 }
+            });
+            trimesterConditions.push({
+              'payment.inscription.enabled': true,
+              'payment.inscription.status': 'non payé',
+              'payment.inscription.annualPrice': { $gt: 0 }
+            });
+          });
+          
+          paymentQuery = { $or: trimesterConditions };
+        } else {
+          // No trimester specified, show all unpaid
+          paymentQuery = {
+            $or: [
+              {
+                'payment.restaurationFoyer.enabled': true,
+                'payment.restaurationFoyer.status': 'non payé'
+              },
+              {
+                'payment.inscription.enabled': true,
+                'payment.inscription.status': 'non payé'
+              }
+            ]
+          };
+        }
       } else if (req.query.paymentStatus === 'exempt') {
-        frenchPaymentStatus = 'dispensé';
+        if (selectedTrimesters.length > 0) {
+          // Filter by specific trimesters that are exempt
+          const trimesterConditions = [];
+          
+          selectedTrimesters.forEach(semester => {
+            trimesterConditions.push({
+              'payment.restaurationFoyer.enabled': true,
+              'payment.restaurationFoyer.status': 'dispensé',
+              [`payment.restaurationFoyer.${semester}`]: { $gte: 0 }
+            });
+            trimesterConditions.push({
+              'payment.inscription.enabled': true,
+              'payment.inscription.status': 'dispensé',
+              'payment.inscription.annualPrice': { $gte: 0 }
+            });
+          });
+          
+          paymentQuery = { $or: trimesterConditions };
+        } else {
+          // No trimester specified, show all exempt
+          paymentQuery = {
+            $or: [
+              {
+                'payment.restaurationFoyer.enabled': true,
+                'payment.restaurationFoyer.status': 'dispensé'
+              },
+              {
+                'payment.inscription.enabled': true,
+                'payment.inscription.status': 'dispensé'
+              }
+            ]
+          };
+        }
       }
       
-
-      if (frenchPaymentStatus) {
-        const paymentFilter = {
-          $or: [
-            { 
-              'payment.restauration.enabled': true, 
-              'payment.restauration.status': frenchPaymentStatus 
-            },
-            { 
-              'payment.foyer.enabled': true, 
-              'payment.foyer.status': frenchPaymentStatus 
-            },
-            { 
-              'payment.inscription.enabled': true, 
-              'payment.inscription.status': frenchPaymentStatus 
-            }
-          ]
-        };
-
-
-        // Combine with existing query
+      console.log('Payment query with trimester filter:', JSON.stringify(paymentQuery, null, 2));
+      
+      // Combine with existing query
+      if (Object.keys(paymentQuery).length > 0) {
         query = Object.keys(query).length > 0
-          ? { $and: [query, paymentFilter] }
-          : paymentFilter;
+          ? { $and: [query, paymentQuery] }
+          : paymentQuery;
       }
     }
 
-    // Ajouter le tri dans la fonction getAllStagiaires
-    const sortField = req.query.sortBy || 'createdAt';
-    const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
-
-    // Log query for debugging
+    // Add this debug line right before executing the query
+    console.log('Final MongoDB query:', JSON.stringify(query, null, 2));
 
     // EXECUTE QUERY - NO POPULATION NEEDED
     let stagiaires = await Stagiaire.find(query)
       .sort({ [sortField]: sortOrder });
 
+    console.log('Number of stagiaires found:', stagiaires.length);
+    
+    // Also log a sample of what's in the database for comparison
+    if (stagiaires.length === 0) {
+      const sampleData = await Stagiaire.findOne({});
+      console.log('Sample stagiaire from database:', sampleData ? {
+        cycle: sampleData.cycle,
+        sessionYear: sampleData.sessionYear,
+        type: sampleData.type,
+        payment: sampleData.payment
+      } : 'No stagiaires in database');
+    }
     
     // GET ALL ROOMS TO MAP STAGIAIRES TO ROOMS
     const allRooms = await Chambre.find({});
@@ -415,29 +590,39 @@ exports.getAllStagiaires = async (req, res) => {
       }
     });
     
-    
-    // Transform stagiaires data for frontend compatibility - ENHANCED VERSION
+    // Transform stagiaires data for frontend compatibility - UPDATED
     const transformedStagiaires = stagiaires.map(stagiaire => {
       const transformed = { ...stagiaire.toObject() };
       
-      // Handle payment data
+      // Handle payment data - COMBINED restaurationFoyer
       if (stagiaire.payment) {
-        transformed.restauration = stagiaire.payment.restauration?.enabled || false;
-        transformed.foyer = stagiaire.payment.foyer?.enabled || false;
+        // For frontend compatibility, send both restauration and foyer with same values
+        transformed.restauration = stagiaire.payment.restaurationFoyer?.enabled || false;
+        transformed.foyer = stagiaire.payment.restaurationFoyer?.enabled || false;
         transformed.inscription = stagiaire.payment.inscription?.enabled || false;
         
-        transformed.restaurationStatus = stagiaire.payment.restauration?.status || 'payé';
-        transformed.foyerStatus = stagiaire.payment.foyer?.status || 'payé';
+        transformed.restaurationStatus = stagiaire.payment.restaurationFoyer?.status || 'payé';
+        transformed.foyerStatus = stagiaire.payment.restaurationFoyer?.status || 'payé';
         transformed.inscriptionStatus = stagiaire.payment.inscription?.status || 'payé';
+        
+        // Semester amounts - same for both restauration and foyer
+        transformed.restaurationSemester1 = stagiaire.payment.restaurationFoyer?.semester1Price || 0;
+        transformed.restaurationSemester2 = stagiaire.payment.restaurationFoyer?.semester2Price || 0;
+        transformed.restaurationSemester3 = stagiaire.payment.restaurationFoyer?.semester3Price || 0;
+        transformed.foyerSemester1 = stagiaire.payment.restaurationFoyer?.semester1Price || 0;
+        transformed.foyerSemester2 = stagiaire.payment.restaurationFoyer?.semester2Price || 0;
+        transformed.foyerSemester3 = stagiaire.payment.restaurationFoyer?.semester3Price || 0;
+        
+        // Annual inscription amount
+        transformed.inscriptionAnnual = stagiaire.payment.inscription?.annualPrice || 0;
       }
       
-      // Handle room assignment - CORRECTED VERSION USING MAPPING
+      // Handle room assignment - keep existing room logic
       const roomInfo = stagiaireToRoomMap[stagiaire._id.toString()];
       if (roomInfo) {
         transformed.chambreInfo = roomInfo;
         transformed.chambreNumero = roomInfo.numero;
       } else {
-        // No room assigned
         transformed.chambreNumero = null;
         transformed.chambreInfo = null;
       }
@@ -448,10 +633,18 @@ exports.getAllStagiaires = async (req, res) => {
     // If no results, do a sanity check on the database
     if (transformedStagiaires.length === 0) {
       const totalCount = await Stagiaire.countDocuments({});
+      console.log('Total stagiaires in database:', totalCount);
       
       // Show a sample of the data structure
       if (totalCount > 0) {
         const sample = await Stagiaire.findOne({}).lean();
+        console.log('Sample stagiaire structure:', {
+          cycle: sample.cycle,
+          sessionYear: sample.sessionYear,
+          type: sample.type,
+          payment: sample.payment,
+          _id: sample._id
+        });
       }
     }
 
@@ -522,23 +715,17 @@ exports.createStagiaire = async (req, res) => {
     // Process payment data
     if (stagiaireData.restauration !== undefined || stagiaireData.foyer !== undefined || stagiaireData.inscription !== undefined) {
       stagiaireData.payment = {
-        restauration: {
-          enabled: stagiaireData.restauration || false,
-          status: stagiaireData.restaurationStatus || 'payé',
+        restaurationFoyer: {
+          enabled: stagiaireData.restauration || stagiaireData.foyer || false,
+          status: stagiaireData.restaurationStatus || stagiaireData.foyerStatus || 'payé',
           semester1Price: parseFloat(stagiaireData.restaurationSemester1) || 0,
-          semester2Price: parseFloat(stagiaireData.restaurationSemester2) || 0
-        },
-        foyer: {
-          enabled: stagiaireData.foyer || false,
-          status: stagiaireData.foyerStatus || 'payé',
-          semester1Price: parseFloat(stagiaireData.foyerSemester1) || 0,
-          semester2Price: parseFloat(stagiaireData.foyerSemester2) || 0
+          semester2Price: parseFloat(stagiaireData.restaurationSemester2) || 0,
+          semester3Price: parseFloat(stagiaireData.restaurationSemester3) || 0
         },
         inscription: {
           enabled: stagiaireData.inscription || false,
           status: stagiaireData.inscriptionStatus || 'payé',
-          semester1Price: parseFloat(stagiaireData.inscriptionSemester1) || 0,
-          semester2Price: parseFloat(stagiaireData.inscriptionSemester2) || 0
+          annualPrice: parseFloat(stagiaireData.inscriptionAnnual) || 0
         }
       };
       
@@ -551,10 +738,11 @@ exports.createStagiaire = async (req, res) => {
       delete stagiaireData.inscriptionStatus;
       delete stagiaireData.restaurationSemester1;
       delete stagiaireData.restaurationSemester2;
+      delete stagiaireData.restaurationSemester3;
       delete stagiaireData.foyerSemester1;
       delete stagiaireData.foyerSemester2;
-      delete stagiaireData.inscriptionSemester1;
-      delete stagiaireData.inscriptionSemester2;
+      delete stagiaireData.foyerSemester3;
+      delete stagiaireData.inscriptionAnnual;
     }
     
     const stagiaire = await Stagiaire.create(stagiaireData);
@@ -577,12 +765,11 @@ exports.createStagiaire = async (req, res) => {
 // Ajouter ces deux fonctions spécialisées
 exports.createInternStagiaire = async (req, res) => {
   try {
-    // S'assurer que le type est toujours 'interne' et ajouter les valeurs par défaut
+    // Set default values and process payment data
     const stagiaireData = {
       ...req.body,
       type: 'interne',
-      cycle: req.body.cycle || 'sep',
-      sessionYear: req.body.sessionYear || new Date().getFullYear().toString()
+      carteHebergement: req.body.carteHebergement || 'non' // Ensure default value
     };
     
     // Vérifier si un stagiaire avec cet email existe déjà
@@ -612,13 +799,33 @@ exports.createInternStagiaire = async (req, res) => {
 
 exports.createExternStagiaire = async (req, res) => {
   try {
-    // S'assurer que le type est toujours 'externe' et ajouter les valeurs par défaut
     const stagiaireData = {
       ...req.body,
       type: 'externe',
-      cycle: req.body.cycle || 'sep',
-      sessionYear: req.body.sessionYear || new Date().getFullYear().toString()
+      cycle: req.body.cycle || 'externe',
+      sessionYear: req.body.sessionYear || new Date().getFullYear().toString(),
+      carteHebergement: req.body.carteHebergement || 'non' // Ensure default value
     };
+
+    // Process payment data for external stagiaires (restauration only)
+    if (stagiaireData.restauration !== undefined) {
+      stagiaireData.payment = {
+        restauration: {
+          enabled: stagiaireData.restauration || false,
+          status: stagiaireData.restaurationStatus || 'payé',
+          semester1Price: parseFloat(stagiaireData.restaurationSemester1) || 0,
+          semester2Price: parseFloat(stagiaireData.restaurationSemester2) || 0,
+          semester3Price: parseFloat(stagiaireData.restaurationSemester3) || 0
+        }
+      };
+      
+      // Remove flat payment fields
+      delete stagiaireData.restauration;
+      delete stagiaireData.restaurationStatus;
+      delete stagiaireData.restaurationSemester1;
+      delete stagiaireData.restaurationSemester2;
+      delete stagiaireData.restaurationSemester3;
+    }
     
     // Vérifier si un stagiaire avec cet email existe déjà
     const existingStagiaire = await Stagiaire.findOne({ email: stagiaireData.email });
@@ -651,42 +858,69 @@ exports.updateStagiaire = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
     
-    // Process payment data for updates
-    if (updateData.restauration !== undefined || updateData.foyer !== undefined || updateData.inscription !== undefined) {
-      updateData.payment = {
-        restauration: {
-          enabled: updateData.restauration || false,
-          status: updateData.restaurationStatus || 'payé',
-          semester1Price: parseFloat(updateData.restaurationSemester1) || 0,
-          semester2Price: parseFloat(updateData.restaurationSemester2) || 0
-        },
-        foyer: {
-          enabled: updateData.foyer || false,
-          status: updateData.foyerStatus || 'payé',
-          semester1Price: parseFloat(updateData.foyerSemester1) || 0,
-          semester2Price: parseFloat(updateData.foyerSemester2) || 0
-        },
-        inscription: {
-          enabled: updateData.inscription || false,
-          status: updateData.inscriptionStatus || 'payé',
-          semester1Price: parseFloat(updateData.inscriptionSemester1) || 0,
-          semester2Price: parseFloat(updateData.inscriptionSemester2) || 0
-        }
-      };
-      
-      // Remove the flat payment fields
-      delete updateData.restauration;
-      delete updateData.foyer;
-      delete updateData.inscription;
-      delete updateData.restaurationStatus;
-      delete updateData.foyerStatus;
-      delete updateData.inscriptionStatus;
-      delete updateData.restaurationSemester1;
-      delete updateData.restaurationSemester2;
-      delete updateData.foyerSemester1;
-      delete updateData.foyerSemester2;
-      delete updateData.inscriptionSemester1;
-      delete updateData.inscriptionSemester2;
+    // Get the existing stagiaire to check type
+    const existingStagiaire = await Stagiaire.findById(id);
+    if (!existingStagiaire) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Stagiaire not found'
+      });
+    }
+
+    // Process payment data based on stagiaire type
+    if (existingStagiaire.type === 'externe') {
+      // Handle external stagiaire payment (restauration only)
+      if (updateData.restauration !== undefined) {
+        updateData.payment = {
+          restauration: {
+            enabled: updateData.restauration || false,
+            status: updateData.restaurationStatus || 'payé',
+            semester1Price: parseFloat(updateData.restaurationSemester1) || 0,
+            semester2Price: parseFloat(updateData.restaurationSemester2) || 0,
+            semester3Price: parseFloat(updateData.restaurationSemester3) || 0
+          }
+        };
+        
+        // Remove flat payment fields
+        delete updateData.restauration;
+        delete updateData.restaurationStatus;
+        delete updateData.restaurationSemester1;
+        delete updateData.restaurationSemester2;
+        delete updateData.restaurationSemester3;
+      }
+    } else {
+      // Handle internal stagiaire payment (existing logic)
+      if (updateData.restauration !== undefined || updateData.foyer !== undefined || updateData.inscription !== undefined) {
+        updateData.payment = {
+          restaurationFoyer: {
+            enabled: updateData.restauration || updateData.foyer || false,
+            status: updateData.restaurationStatus || updateData.foyerStatus || 'payé',
+            semester1Price: parseFloat(updateData.restaurationSemester1) || 0,
+            semester2Price: parseFloat(updateData.restaurationSemester2) || 0,
+            semester3Price: parseFloat(updateData.restaurationSemester3) || 0
+          },
+          inscription: {
+            enabled: updateData.inscription || false,
+            status: updateData.inscriptionStatus || 'payé',
+            annualPrice: parseFloat(updateData.inscriptionAnnual) || 0
+          }
+        };
+        
+        // Remove internal payment fields
+        delete updateData.restauration;
+        delete updateData.foyer;
+        delete updateData.inscription;
+        delete updateData.restaurationStatus;
+        delete updateData.foyerStatus;
+        delete updateData.inscriptionStatus;
+        delete updateData.restaurationSemester1;
+        delete updateData.restaurationSemester2;
+        delete updateData.restaurationSemester3;
+        delete updateData.foyerSemester1;
+        delete updateData.foyerSemester2;
+        delete updateData.foyerSemester3;
+        delete updateData.inscriptionAnnual;
+      }
     }
     
     const stagiaire = await Stagiaire.findByIdAndUpdate(
@@ -694,13 +928,6 @@ exports.updateStagiaire = async (req, res) => {
       updateData,
       { new: true, runValidators: true }
     );
-    
-    if (!stagiaire) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Stagiaire not found'
-      });
-    }
     
     res.status(200).json({
       status: 'success',
@@ -717,10 +944,11 @@ exports.updateStagiaire = async (req, res) => {
   }
 };
 
-// Delete a stagiaire
-exports.deleteStagiaire = async (req, res) => {
+// Get stagiaire by ID with detailed payment data for editing
+exports.getStagiaireById = async (req, res) => {
   try {
-    const stagiaire = await Stagiaire.findByIdAndDelete(req.params.id);
+    const { id } = req.params;
+    const stagiaire = await Stagiaire.findById(id);
     
     if (!stagiaire) {
       return res.status(404).json({
@@ -729,15 +957,51 @@ exports.deleteStagiaire = async (req, res) => {
       });
     }
 
-    res.status(204).json({
+    // Transform payment data back to flat structure for frontend editing
+    let transformedStagiaire = stagiaire.toObject();
+    
+    if (stagiaire.payment) {
+      if (stagiaire.type === 'externe') {
+        // Handle external stagiaire payment data (restauration only)
+        transformedStagiaire.restauration = stagiaire.payment.restauration?.enabled || false;
+        transformedStagiaire.restaurationStatus = stagiaire.payment.restauration?.status || 'payé';
+        transformedStagiaire.restaurationSemester1 = stagiaire.payment.restauration?.semester1Price || '';
+        transformedStagiaire.restaurationSemester2 = stagiaire.payment.restauration?.semester2Price || '';
+        transformedStagiaire.restaurationSemester3 = stagiaire.payment.restauration?.semester3Price || '';
+      } else {
+        // Handle internal stagiaire payment data (existing logic)
+        transformedStagiaire.restauration = stagiaire.payment.restaurationFoyer?.enabled || false;
+        transformedStagiaire.foyer = stagiaire.payment.restaurationFoyer?.enabled || false;
+        transformedStagiaire.inscription = stagiaire.payment.inscription?.enabled || false;
+        
+        transformedStagiaire.restaurationStatus = stagiaire.payment.restaurationFoyer?.status || 'payé';
+        transformedStagiaire.foyerStatus = stagiaire.payment.restaurationFoyer?.status || 'payé';
+        transformedStagiaire.inscriptionStatus = stagiaire.payment.inscription?.status || 'payé';
+        
+        // Semester amounts - same values for both restauration and foyer
+        transformedStagiaire.restaurationSemester1 = stagiaire.payment.restaurationFoyer?.semester1Price || '';
+        transformedStagiaire.restaurationSemester2 = stagiaire.payment.restaurationFoyer?.semester2Price || '';
+        transformedStagiaire.restaurationSemester3 = stagiaire.payment.restaurationFoyer?.semester3Price || '';
+        transformedStagiaire.foyerSemester1 = stagiaire.payment.restaurationFoyer?.semester1Price || '';
+        transformedStagiaire.foyerSemester2 = stagiaire.payment.restaurationFoyer?.semester2Price || '';
+        transformedStagiaire.foyerSemester3 = stagiaire.payment.restaurationFoyer?.semester3Price || '';
+        
+        // Annual inscription amount
+        transformedStagiaire.inscriptionAnnual = stagiaire.payment.inscription?.annualPrice || '';
+      }
+    }
+    
+    res.status(200).json({
       status: 'success',
-      data: null
+      data: {
+        stagiaire: transformedStagiaire
+      }
     });
   } catch (error) {
-    console.error('Error deleting stagiaire:', error);
+    console.error('Error fetching stagiaire:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Error deleting stagiaire'
+      message: error.message
     });
   }
 };
@@ -1109,55 +1373,6 @@ exports.exportStagiaire = async (req, res) => {
   }
 };
 
-// Update this function to transform payment data for editing
-exports.getStagiaireById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const stagiaire = await Stagiaire.findById(id);
-    
-    if (!stagiaire) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Stagiaire not found'
-      });
-    }
-
-    // Transform payment data back to flat structure for frontend editing
-    let transformedStagiaire = stagiaire.toObject();
-    
-    if (stagiaire.payment) {
-      // Add flat payment fields for frontend compatibility
-      transformedStagiaire.restauration = stagiaire.payment.restauration?.enabled || false;
-      transformedStagiaire.foyer = stagiaire.payment.foyer?.enabled || false;
-      transformedStagiaire.inscription = stagiaire.payment.inscription?.enabled || false;
-      
-      transformedStagiaire.restaurationStatus = stagiaire.payment.restauration?.status || 'payé';
-      transformedStagiaire.foyerStatus = stagiaire.payment.foyer?.status || 'payé';
-      transformedStagiaire.inscriptionStatus = stagiaire.payment.inscription?.status || 'payé';
-      
-      transformedStagiaire.restaurationSemester1 = stagiaire.payment.restauration?.semester1Price || '';
-      transformedStagiaire.restaurationSemester2 = stagiaire.payment.restauration?.semester2Price || '';
-      transformedStagiaire.foyerSemester1 = stagiaire.payment.foyer?.semester1Price || '';
-      transformedStagiaire.foyerSemester2 = stagiaire.payment.foyer?.semester2Price || '';
-      transformedStagiaire.inscriptionSemester1 = stagiaire.payment.inscription?.semester1Price || '';
-      transformedStagiaire.inscriptionSemester2 = stagiaire.payment.inscription?.semester2Price || '';
-    }
-    
-    res.status(200).json({
-      status: 'success',
-      data: {
-        stagiaire: transformedStagiaire
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching stagiaire:', error);
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-};
-
 // Update the getStagiaires function - fix the payment filter logic
 exports.getStagiaires = async (req, res) => {
   try {
@@ -1178,58 +1393,78 @@ exports.getStagiaires = async (req, res) => {
       endDate,
       sortBy = 'createdAt',
       sortOrder = 'desc',
-      paymentStatus = ''
+      paymentStatus = '',
+      trimester1 = 'false',
+      trimester2 = 'false',
+      trimester3 = 'false'
     } = req.query;
 
-    // Translate English payment status to French for database query
-    let frenchPaymentStatus = '';
-    if (paymentStatus === 'paid') {
-      frenchPaymentStatus = 'payé';
-    } else if (paymentStatus === 'exempt') {
-      frenchPaymentStatus = 'dispensé';
-    }
-    
-    // Build the base filter using existing buildStagiaireQuery function
-    let filter = buildStagiaireQuery({
-      search,
-      status,
-      room,
-      specificRoom,
-      gender,
-      session,
-      year,
-      startDate,
-      endDate
-    });
-
-    // Add payment filter logic with French status
-    if (frenchPaymentStatus && frenchPaymentStatus !== '') {
-      const paymentFilter = {
-        $or: [
-          { 
-            'payment.restauration.enabled': true, 
-            'payment.restauration.status': frenchPaymentStatus 
-          },
-          { 
-            'payment.foyer.enabled': true, 
-            'payment.foyer.status': frenchPaymentStatus 
-          },
-          { 
-            'payment.inscription.enabled': true, 
-            'payment.inscription.status': frenchPaymentStatus 
+    // Add payment filter logic with trimester support
+    if (paymentStatus && paymentStatus !== '') {
+      let frenchPaymentStatus = '';
+      if (paymentStatus === 'paid') {
+        frenchPaymentStatus = 'payé';
+      } else if (paymentStatus === 'unpaid') {
+        frenchPaymentStatus = 'non payé';
+      } else if (paymentStatus === 'exempt') {
+        frenchPaymentStatus = 'dispensé';
+      }
+      
+      if (frenchPaymentStatus) {
+        // Get selected trimesters
+        const selectedTrimesters = [];
+        if (trimester1 === 'true') selectedTrimesters.push('semester1Price');
+        if (trimester2 === 'true') selectedTrimesters.push('semester2Price');
+        if (trimester3 === 'true') selectedTrimesters.push('semester3Price');
+        
+        let paymentFilter;
+        
+        if (selectedTrimesters.length > 0) {
+          // Filter by specific trimesters
+          const trimesterConditions = [];
+          
+          selectedTrimesters.forEach(semester => {
+            trimesterConditions.push({
+              'payment.restaurationFoyer.enabled': true,
+              'payment.restaurationFoyer.status': frenchPaymentStatus,
+              [`payment.restaurationFoyer.${semester}`]: frenchPaymentStatus === 'dispensé' ? { $gte: 0 } : { $gt: 0 }
+            });
+          });
+          
+          // Also check inscription for annual payments
+          if (frenchPaymentStatus === 'payé' || frenchPaymentStatus === 'non payé' || frenchPaymentStatus === 'dispensé') {
+            trimesterConditions.push({
+              'payment.inscription.enabled': true,
+              'payment.inscription.status': frenchPaymentStatus,
+              'payment.inscription.annualPrice': frenchPaymentStatus === 'dispensé' ? { $gte: 0 } : { $gt: 0 }
+            });
           }
-        ]
-      };
+          
+          paymentFilter = { $or: trimesterConditions };
+        } else {
+          // No specific trimester, use original logic
+          paymentFilter = {
+            $or: [
+              { 
+                'payment.restaurationFoyer.enabled': true, 
+                'payment.restaurationFoyer.status': frenchPaymentStatus 
+              },
+              { 
+                'payment.inscription.enabled': true, 
+                'payment.inscription.status': frenchPaymentStatus 
+              }
+            ]
+          };
+        }
 
-
-      // Combine with existing filter properly
-      if (Object.keys(filter).length > 0) {
-        filter = { $and: [filter, paymentFilter] };
-      } else {
-        filter = paymentFilter;
+        // Combine with existing filter properly
+        if (Object.keys(filter).length > 0) {
+          filter = { $and: [filter, paymentFilter] };
+        } else {
+          filter = paymentFilter;
+        }
       }
     }
-
     // Build sort object
     const sortObj = {};
     sortObj[sortBy] = sortOrder === 'asc' ? 1 : -1;
@@ -1281,6 +1516,123 @@ exports.getStagiaires = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching stagiaires:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+// Delete a stagiaire
+exports.deleteStagiaire = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if stagiaire exists
+    const stagiaire = await Stagiaire.findById(id);
+    if (!stagiaire) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Stagiaire not found'
+      });
+    }
+
+    // Remove stagiaire from any room they might be assigned to
+    if (stagiaire.chambre) {
+      await Chambre.findByIdAndUpdate(
+        stagiaire.chambre,
+        { $pull: { occupants: id } }
+      );
+    }
+
+    // Also check if stagiaire is in any room's occupants array (alternative room assignment method)
+    await Chambre.updateMany(
+      { occupants: id },
+      { $pull: { occupants: id } }
+    );
+
+    // Delete the stagiaire
+    await Stagiaire.findByIdAndDelete(id);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Stagiaire deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting stagiaire:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+// Bulk delete stagiaires
+exports.bulkDeleteStagiaires = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Please provide an array of stagiaire IDs'
+      });
+    }
+
+    // Remove stagiaires from any rooms they might be assigned to
+    await Chambre.updateMany(
+      { occupants: { $in: ids } },
+      { $pull: { occupants: { $in: ids } } }
+    );
+
+    // Delete the stagiaires
+    const result = await Stagiaire.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 'success',
+      message: `${result.deletedCount} stagiaires deleted successfully`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Error bulk deleting stagiaires:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+// Get stagiaires statistics
+exports.getStagiaireStats = async (req, res) => {
+  try {
+    const totalStagiaires = await Stagiaire.countDocuments();
+    const activeStagiaires = await Stagiaire.countDocuments({
+      dateArrivee: { $lte: new Date() },
+      dateDepart: { $gte: new Date() }
+    });
+    const internStagiaires = await Stagiaire.countDocuments({ type: 'interne' });
+    const externStagiaires = await Stagiaire.countDocuments({ type: 'externe' });
+    
+    // Get stagiaires with rooms
+    const roomsWithOccupants = await Chambre.find({ 
+      occupants: { $exists: true, $not: { $size: 0 } } 
+    });
+    const stagiaireIdsWithRooms = roomsWithOccupants.flatMap(room => room.occupants);
+    const stagiaireWithRooms = stagiaireIdsWithRooms.length;
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        total: totalStagiaires,
+        active: activeStagiaires,
+        intern: internStagiaires,
+        extern: externStagiaires,
+        withRooms: stagiaireWithRooms,
+        withoutRooms: totalStagiaires - stagiaireWithRooms
+      }
+    });
+  } catch (error) {
+    console.error('Error getting stagiaire stats:', error);
     res.status(500).json({
       status: 'error',
       message: error.message

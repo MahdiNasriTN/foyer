@@ -293,3 +293,92 @@ exports.getMe = async (req, res) => {
     });
   }
 };
+
+// Check if superadmin exists
+exports.checkSuperAdminExists = async (req, res) => {
+  try {
+    const superAdmin = await User.findOne({ role: 'superadmin' });
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        exists: !!superAdmin
+      }
+    });
+  } catch (error) {
+    console.error('Error checking superadmin:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Erreur serveur lors de la vérification'
+    });
+  }
+};
+
+// Setup superadmin (only works if no superadmin exists)
+exports.setupSuperAdmin = async (req, res) => {
+  try {
+    // Check if superadmin already exists
+    const existingSuperAdmin = await User.findOne({ role: 'superadmin' });
+    
+    if (existingSuperAdmin) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Un super administrateur existe déjà'
+      });
+    }
+
+    const { firstName, lastName, email, password } = req.body;
+
+    // Validation
+    if (!firstName || !lastName || !email || !password) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Tous les champs sont requis'
+      });
+    }
+
+    // Check if email already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cet email est déjà utilisé'
+      });
+    }
+
+    // Create superadmin user
+    const superAdmin = await User.create({
+      firstName,
+      lastName,
+      email,
+      password, // This should be hashed by your User model
+      role: 'superadmin',
+      permissions: ['view', 'edit', 'create', 'delete', 'approve', 'export'],
+      status: 'active'
+    });
+
+    // Generate token
+    const token = jwt.sign(
+      { id: superAdmin._id },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN }
+    );
+
+    // Remove password from output
+    superAdmin.password = undefined;
+
+    res.status(201).json({
+      status: 'success',
+      token,
+      data: {
+        user: superAdmin
+      }
+    });
+  } catch (error) {
+    console.error('Error setting up superadmin:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Erreur serveur lors de la création du compte'
+    });
+  }
+};

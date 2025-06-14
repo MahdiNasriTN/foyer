@@ -142,7 +142,8 @@ router.post('/register', authController.register);
  *         description: Non authentifié
  */
 
-// Protected routes - need authentication
+router.get('/check-superadmin', authController.checkSuperAdminExists);
+router.post('/setup-superadmin', authController.setupSuperAdmin);
 router.use(protect); // All routes after this middleware will require authentication
 
 // Note: Change this to match the URL your frontend is requesting
@@ -151,5 +152,8 @@ router.get('/me', authController.getMe); // This should match the /auth/me endpo
 // Add user profile routes
 router.get('/profile', authController.getUserProfile);
 router.put('/profile', authController.updateUserProfile);
+
+// Check and setup superadmin routes
+
 
 module.exports = router;

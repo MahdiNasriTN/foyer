@@ -93,12 +93,16 @@ const stagiaireSchema = new mongoose.Schema({
   },
   cycle: {
     type: String,
-    enum: ['sep', 'nov', 'fev'],
-    required: [true, 'Cycle is required']
+    enum: ['sep', 'nov', 'fev', 'externe'],
+    required: function() {
+      return this.type !== 'externe';
+    }
   },
   sessionYear: {
     type: String,
-    required: [true, 'Session year is required']
+    required: function() {
+      return this.type !== 'externe';
+    }
   },
   telephone: {
     type: String
@@ -171,9 +175,6 @@ const stagiaireSchema = new mongoose.Schema({
   specialization: {
     type: String
   },
-  cycle: {
-    type: String
-  },
   groupNumber: {
     type: String
   },
@@ -219,78 +220,38 @@ const stagiaireSchema = new mongoose.Schema({
   hobby: {
     type: String
   },
-  // Reference to Chambre
+  // Add the accommodation card field
+  carteHebergement: {
+    type: String,
+    enum: ['oui', 'non'],
+    default: 'non'
+  },
   chambre: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Chambre'
   },
-  // Payment Information
   payment: {
     restauration: {
-      enabled: {
-        type: Boolean,
-        default: false
-      },
-      status: {
-        type: String,
-        enum: ['payé', 'dispensé'],
-        default: 'payé'
-      },
-      semester1Price: {
-        type: Number,
-        default: 0
-      },
-      semester2Price: {
-        type: Number,
-        default: 0
-      }
+      enabled: { type: Boolean, default: false },
+      status: { type: String, enum: ['payé', 'dispensé'], default: 'payé' },
+      semester1Price: { type: Number, default: 0 },
+      semester2Price: { type: Number, default: 0 },
+      semester3Price: { type: Number, default: 0 }
     },
-    foyer: {
-      enabled: {
-        type: Boolean,
-        default: false
-      },
-      status: {
-        type: String,
-        enum: ['payé', 'dispensé'],
-        default: 'payé'
-      },
-      semester1Price: {
-        type: Number,
-        default: 0
-      },
-      semester2Price: {
-        type: Number,
-        default: 0
-      }
+    restaurationFoyer: {
+      enabled: { type: Boolean, default: false },
+      status: { type: String, enum: ['payé', 'dispensé'], default: 'payé' },
+      semester1Price: { type: Number, default: 0 },
+      semester2Price: { type: Number, default: 0 },
+      semester3Price: { type: Number, default: 0 }
     },
     inscription: {
-      enabled: {
-        type: Boolean,
-        default: false
-      },
-      status: {
-        type: String,
-        enum: ['payé', 'dispensé'],
-        default: 'payé'
-      },
-      semester1Price: {
-        type: Number,
-        default: 0
-      },
-      semester2Price: {
-        type: Number,
-        default: 0
-      }
+      enabled: { type: Boolean, default: false },
+      status: { type: String, enum: ['payé', 'dispensé'], default: 'payé' },
+      annualPrice: { type: Number, default: 0 }
     },
-    totalAmount: {
-      type: Number,
-      default: 0
-    },
-    lastUpdated: {
-      type: Date,
-      default: Date.now
-    }
+    totalAmount: { type: Number, default: 0 },
+    lastUpdated: { type: Date }
   },
 }, {
   timestamps: true
@@ -330,24 +291,28 @@ stagiaireSchema.virtual('fullName').get(function() {
   return `${this.firstName} ${this.lastName}`;
 });
 
-// Add a pre-save middleware to calculate total amount
+// Add a pre-save middleware to calculate total amount - UPDATED for combined structure
 stagiaireSchema.pre('save', function(next) {
   if (this.payment) {
     let total = 0;
     
-    // Calculate restauration total
-    if (this.payment.restauration.enabled && this.payment.restauration.status === 'payé') {
-      total += (this.payment.restauration.semester1Price || 0) + (this.payment.restauration.semester2Price || 0);
+    // Calculate restauration total for external stagiaires
+    if (this.type === 'externe' && this.payment.restauration && this.payment.restauration.enabled && this.payment.restauration.status === 'payé') {
+      total += (this.payment.restauration.semester1Price || 0) + 
+               (this.payment.restauration.semester2Price || 0) + 
+               (this.payment.restauration.semester3Price || 0);
     }
     
-    // Calculate foyer total
-    if (this.payment.foyer.enabled && this.payment.foyer.status === 'payé') {
-      total += (this.payment.foyer.semester1Price || 0) + (this.payment.foyer.semester2Price || 0);
+    // Calculate restaurationFoyer total for internal stagiaires (combined restauration & foyer)
+    if (this.type === 'interne' && this.payment.restaurationFoyer && this.payment.restaurationFoyer.enabled && this.payment.restaurationFoyer.status === 'payé') {
+      total += (this.payment.restaurationFoyer.semester1Price || 0) + 
+               (this.payment.restaurationFoyer.semester2Price || 0) + 
+               (this.payment.restaurationFoyer.semester3Price || 0);
     }
     
-    // Calculate inscription total
-    if (this.payment.inscription.enabled && this.payment.inscription.status === 'payé') {
-      total += (this.payment.inscription.semester1Price || 0) + (this.payment.inscription.semester2Price || 0);
+    // Calculate inscription total (annual) - only for internal stagiaires
+    if (this.type === 'interne' && this.payment.inscription && this.payment.inscription.enabled && this.payment.inscription.status === 'payé') {
+      total += (this.payment.inscription.annualPrice || 0);
     }
     
     this.payment.totalAmount = total;

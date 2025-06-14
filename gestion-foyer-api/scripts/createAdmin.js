@@ -4,8 +4,8 @@ const readline = require('readline');
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
-// Load the User model directly to avoid circular dependencies
-const { User } = require('../models/User');
+// Load the User model directly - fix the import
+const User = require('../models/User');
 
 // Create interface for command line input
 const rl = readline.createInterface({
@@ -19,7 +19,7 @@ const createAdmin = async () => {
   try {
     // Connect to MongoDB
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/gestion_foyer');
-
+    console.log('✅ Connexion à MongoDB réussie');
 
     // Get input from CLI or use defaults
     const useDefaults = await question('Utiliser les valeurs par défaut? (O/n): ');
@@ -52,7 +52,7 @@ const createAdmin = async () => {
     const adminExists = await User.findOne({ email });
     
     if (adminExists) {
-      
+      console.log('\x1b[33m%s\x1b[0m', '⚠️  Un utilisateur avec cet email existe déjà.');
       const updateUser = await question('Voulez-vous mettre à jour cet utilisateur? (o/N): ');
       
       if (updateUser.toLowerCase() === 'o') {
@@ -71,6 +71,7 @@ const createAdmin = async () => {
         }
         
         await adminExists.save();
+        console.log('\x1b[32m%s\x1b[0m', '✅ Utilisateur mis à jour avec succès!');
       }
     } else {
       // Create new admin user
@@ -90,6 +91,9 @@ const createAdmin = async () => {
         }
       });
       
+      console.log('\x1b[32m%s\x1b[0m', '✅ Administrateur créé avec succès!');
+      console.log('\x1b[36m%s\x1b[0m', `📧 Email: ${admin.email}`);
+      console.log('\x1b[36m%s\x1b[0m', `🔑 Mot de passe: ${password}`);
       
       // Save this info to a file for reference
       const fs = require('fs');
@@ -110,6 +114,7 @@ const createAdmin = async () => {
         `modifiez ce mot de passe après votre première connexion.`
       );
       
+      console.log('\x1b[35m%s\x1b[0m', `📄 Identifiants sauvegardés dans: ${infoPath}`);
     }
   } catch (error) {
     console.error('\x1b[31m%s\x1b[0m', '\n❌ Erreur lors de la création de l\'administrateur:');
@@ -119,6 +124,7 @@ const createAdmin = async () => {
     rl.close();
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
+      console.log('🔌 Connexion MongoDB fermée');
     }
   }
 };

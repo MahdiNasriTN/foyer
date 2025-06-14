@@ -63,7 +63,7 @@ app.use('/api/v1/stagiaires', stagiaireRoutes);
 app.use('/api/v1/chambres', chambreRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/personnel', personnelRoutes);
-app.use('/api/v1/schedule', scheduleRoutes);
+app.use('/api/v1/schedules', scheduleRoutes);
 app.use('/api/v1/users', userRoutes);
 
 /**

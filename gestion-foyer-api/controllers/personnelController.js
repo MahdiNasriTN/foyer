@@ -1,132 +1,133 @@
 const Personnel = require('../models/personnel');
+const mongoose = require('mongoose'); // Add this import at the top
 
 // Obtenir tous les membres du personnel avec filtrage
 exports.getAllPersonnel = async (req, res) => {
   try {
-    const { status, department, role, fonction, search, startDate, endDate } = req.query;
-    
-    console.log('Query parameters received:', req.query);
-    
-    // Start with empty conditions array
-    let conditions = [];
-    
-    // Handle status filter
-    if (status && status !== 'all') {
-      if (status === 'active') {
-        conditions.push({
-          $or: [
-            { status: 'active' },
-            { statut: 'actif' },
-            { isActive: true },
-            { active: true }
-          ]
-        });
-      } else if (status === 'inactive') {
-        conditions.push({
-          $or: [
-            { status: 'inactive' },
-            { statut: 'inactif' },
-            { isActive: false },
-            { active: false }
-          ]
-        });
-      }
-    }
-    
-    // Handle department filter - check your Personnel model for the correct field name
-    if (department && department !== 'all') {
-      conditions.push({ departement: department }); // or { department: department }
-    }
-    
-    // Handle role filter
-    if (role && role !== 'all') {
-      conditions.push({ role: role });
-    }
-    
-    // Handle fonction filter
-    if (fonction && fonction !== 'all') {
-      conditions.push({ fonction: fonction });
-    }
-    
-    // Handle search filter
+    const { 
+      search = '', 
+      status = 'all', 
+      sortBy = 'createdAt', 
+      sortOrder = 'desc',
+      page = 1,
+      limit = 50
+    } = req.query;
+
+    // Build query
+    let query = {};
+
+    // Search functionality
     if (search) {
       const searchRegex = new RegExp(search, 'i');
-      conditions.push({
+      query = {
         $or: [
           { firstName: searchRegex },
           { lastName: searchRegex },
-          { prenom: searchRegex },
           { nom: searchRegex },
-          { email: searchRegex }
+          { email: searchRegex },
+          { identifier: searchRegex },
+          { poste: searchRegex },
+          { departement: searchRegex }
         ]
-      });
+      };
     }
-    
-    // Handle date range filter
-    if (startDate || endDate) {
-      const dateFilter = {};
-      if (startDate) dateFilter.$gte = new Date(startDate);
-      if (endDate) dateFilter.$lte = new Date(endDate);
-      
-      conditions.push({
-        $or: [
-          { hireDate: dateFilter },
-          { dateEmbauche: dateFilter },
-          { createdAt: dateFilter }
-        ]
-      });
+
+    // Status filter
+    if (status !== 'all') {
+      query.statut = status;
     }
-    
-    // Build final filter
-    let filter = {};
-    if (conditions.length > 0) {
-      filter = { $and: conditions };
-    }
-    
-    console.log('Final filter object:', JSON.stringify(filter, null, 2));
-    
-    // Execute the query
-    const personnel = await Personnel.find(filter).sort({ createdAt: -1 });
-    
-    console.log(`Found ${personnel.length} personnel members`);
-    
+
+    // Sorting
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+    // Execute query with pagination
+    const personnel = await Personnel.find(query)
+      .sort(sortOptions)
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Personnel.countDocuments(query);
+    const totalPages = Math.ceil(total / limit);
+
     res.status(200).json({
       status: 'success',
       results: personnel.length,
-      data: personnel
+      totalPages,
+      currentPage: parseInt(page),
+      data: {
+        personnel
+      }
     });
-    
   } catch (error) {
-    console.error('Error in getAllPersonnel:', error);
+    console.error('Error getting personnel:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Erreur lors de la récupération du personnel',
-      error: error.message
+      message: 'Erreur lors de la récupération du personnel'
     });
   }
 };
 
-// Obtenir un membre du personnel par ID
+// GET personnel by ID (improved with ObjectId validation)
 exports.getPersonnelById = async (req, res) => {
   try {
-    const personnel = await Personnel.findById(req.params.id);
+    const { id } = req.params;
     
-    if (!personnel) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Personnel not found'
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'ID de format invalide'
       });
     }
     
+    const personnel = await Personnel.findById(id);
+    if (!personnel) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Employé non trouvé'
+      });
+    }
+
     res.status(200).json({
       status: 'success',
-      data: personnel
+      data: {
+        personnel
+      }
     });
   } catch (error) {
-    console.error('Error fetching personnel by ID:', error);
+    console.error('Error getting personnel by ID:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: 'Erreur lors de la récupération de l\'employé'
+    });
+  }
+};
+
+// Add a new function to search by identifier:
+exports.getPersonnelByIdentifier = async (req, res) => {
+  try {
+    const { identifier } = req.params;
+    
+    const personnel = await Personnel.findOne({ identifier });
+    if (!personnel) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Employé non trouvé avec cet identifiant'
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        personnel
+      }
+    });
+  } catch (error) {
+    console.error('Error getting personnel by identifier:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Erreur lors de la recherche de l\'employé'
     });
   }
 };
@@ -134,26 +135,95 @@ exports.getPersonnelById = async (req, res) => {
 // Créer un nouveau membre du personnel
 exports.createPersonnel = async (req, res) => {
   try {
-    // Vérifier si l'email existe déjà
-    const existingPersonnel = await Personnel.findOne({ email: req.body.email });
-    if (existingPersonnel) {
+    const {
+      identifier,
+      firstName,
+      lastName,
+      email,
+      telephone,
+      poste,
+      departement,
+      dateEmbauche,
+      statut,
+      adresse
+      // Removed permissions
+    } = req.body;
+
+    // Validate required fields
+    if (!firstName || !lastName || !email || !telephone || !poste || !departement || !dateEmbauche) {
       return res.status(400).json({
-        status: 'fail',
+        status: 'error',
+        message: 'Tous les champs obligatoires doivent être remplis'
+      });
+    }
+
+    // Check if email already exists
+    const existingEmail = await Personnel.findOne({ email: email.toLowerCase() });
+    if (existingEmail) {
+      return res.status(400).json({
+        status: 'error',
         message: 'Un employé avec cet email existe déjà'
       });
     }
-    
-    const newPersonnel = await Personnel.create(req.body);
-    
+
+    // Check if identifier already exists (if provided)
+    if (identifier) {
+      const existingIdentifier = await Personnel.findOne({ identifier });
+      if (existingIdentifier) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Un employé avec cet identifiant existe déjà'
+        });
+      }
+    }
+
+    // Create new personnel
+    const personnel = new Personnel({
+      identifier,
+      firstName,
+      lastName,
+      email: email.toLowerCase(),
+      telephone,
+      poste,
+      departement,
+      dateEmbauche,
+      statut: statut || 'actif',
+      adresse
+      // Removed permissions
+    });
+
+    const savedPersonnel = await personnel.save();
+
     res.status(201).json({
       status: 'success',
-      data: newPersonnel
+      message: 'Employé créé avec succès',
+      data: {
+        personnel: savedPersonnel
+      }
     });
   } catch (error) {
     console.error('Error creating personnel:', error);
-    res.status(400).json({
+    
+    if (error.code === 11000) {
+      // Handle duplicate key error
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({
+        status: 'error',
+        message: `Un employé avec cet ${field === 'email' ? 'email' : 'identifiant'} existe déjà`
+      });
+    }
+    
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        status: 'error',
+        message: messages.join(', ')
+      });
+    }
+
+    res.status(500).json({
       status: 'error',
-      message: error.message
+      message: 'Erreur lors de la création de l\'employé'
     });
   }
 };
@@ -161,68 +231,118 @@ exports.createPersonnel = async (req, res) => {
 // Mettre à jour un membre du personnel
 exports.updatePersonnel = async (req, res) => {
   try {
-    // Vérifier si l'email existe déjà pour un autre employé
-    if (req.body.email) {
-      const existingPersonnel = await Personnel.findOne({ 
-        email: req.body.email,
-        _id: { $ne: req.params.id }
+    const { id } = req.params;
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'ID de format invalide'
       });
-      
-      if (existingPersonnel) {
+    }
+    
+    const {
+      identifier,
+      firstName,
+      lastName,
+      email,
+      telephone,
+      poste,
+      departement,
+      dateEmbauche,
+      statut,
+      adresse
+      // Removed permissions
+    } = req.body;
+
+    // Find the personnel
+    const personnel = await Personnel.findById(id);
+    if (!personnel) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Employé non trouvé'
+      });
+    }
+
+    // Check if email is being changed and if it already exists
+    if (email && email.toLowerCase() !== personnel.email) {
+      const existingEmail = await Personnel.findOne({ 
+        email: email.toLowerCase(),
+        _id: { $ne: id }
+      });
+      if (existingEmail) {
         return res.status(400).json({
-          status: 'fail',
+          status: 'error',
           message: 'Un employé avec cet email existe déjà'
         });
       }
     }
-    
+
+    // Check if identifier is being changed and if it already exists
+    if (identifier && identifier !== personnel.identifier) {
+      const existingIdentifier = await Personnel.findOne({ 
+        identifier: identifier,
+        _id: { $ne: id }
+      });
+      if (existingIdentifier) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Un employé avec cet identifiant existe déjà'
+        });
+      }
+    }
+
+    // Update personnel (removed permissions)
     const updatedPersonnel = await Personnel.findByIdAndUpdate(
-      req.params.id,
-      req.body,
+      id,
+      {
+        identifier: identifier || personnel.identifier,
+        firstName,
+        lastName,
+        email: email ? email.toLowerCase() : personnel.email,
+        telephone,
+        poste,
+        departement,
+        dateEmbauche,
+        statut,
+        adresse
+        // Removed permissions
+      },
       { new: true, runValidators: true }
     );
-    
-    if (!updatedPersonnel) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Personnel not found'
-      });
-    }
-    
+
     res.status(200).json({
       status: 'success',
-      data: updatedPersonnel
+      message: 'Employé mis à jour avec succès',
+      data: {
+        personnel: updatedPersonnel
+      }
     });
   } catch (error) {
     console.error('Error updating personnel:', error);
-    res.status(400).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-};
-
-// Supprimer un membre du personnel
-exports.deletePersonnel = async (req, res) => {
-  try {
-    const personnel = await Personnel.findByIdAndDelete(req.params.id);
     
-    if (!personnel) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Personnel not found'
+    if (error.code === 11000) {
+      // Handle duplicate key error for both email and identifier
+      const field = Object.keys(error.keyPattern)[0];
+      const fieldName = field === 'email' ? 'email' : 
+                       field === 'identifier' ? 'identifiant' : field;
+      return res.status(400).json({
+        status: 'error',
+        message: `Un employé avec cet ${fieldName} existe déjà`
       });
     }
     
-    res.status(204).json({
-      status: 'success',
-      data: null
-    });
-  } catch (error) {
-    console.error('Error deleting personnel:', error);
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        status: 'error',
+        message: messages.join(', ')
+      });
+    }
+
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: 'Erreur lors de la mise à jour de l\'employé'
     });
   }
 };
@@ -230,11 +350,16 @@ exports.deletePersonnel = async (req, res) => {
 // Obtenir des statistiques sur le personnel
 exports.getPersonnelStats = async (req, res) => {
   try {
-    const total = await Personnel.countDocuments();
-    const active = await Personnel.countDocuments({ statut: 'actif' });
-    const inactive = await Personnel.countDocuments({ statut: 'inactif' });
+    // Get total count
+    const totalPersonnel = await Personnel.countDocuments();
     
-    // Répartition par département
+    // Get active count
+    const activePersonnel = await Personnel.countDocuments({ statut: 'actif' });
+    
+    // Get inactive count
+    const inactivePersonnel = await Personnel.countDocuments({ statut: 'inactif' });
+    
+    // Get count by department
     const departmentStats = await Personnel.aggregate([
       {
         $group: {
@@ -247,44 +372,45 @@ exports.getPersonnelStats = async (req, res) => {
       }
     ]);
     
-    // Transformer le résultat en objet
-    const departments = departmentStats.reduce((acc, curr) => {
-      acc[curr._id] = curr.count;
-      return acc;
-    }, {});
-    
-    // Répartition par rôle
-    const roleStats = await Personnel.aggregate([
+    // Get count by position
+    const positionStats = await Personnel.aggregate([
       {
         $group: {
-          _id: '$role',
+          _id: '$poste',
           count: { $sum: 1 }
         }
+      },
+      {
+        $sort: { count: -1 }
       }
     ]);
     
-    // Transformer le résultat en objet
-    const roles = roleStats.reduce((acc, curr) => {
-      acc[curr._id] = curr.count;
-      return acc;
-    }, {});
+    // Get recent hires (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
+    const recentHires = await Personnel.countDocuments({
+      dateEmbauche: { $gte: thirtyDaysAgo }
+    });
+
     res.status(200).json({
       status: 'success',
       data: {
-        total,
-        active,
-        inactive,
-        activeRate: Math.round((active / total) * 100),
-        departments,
-        roles
+        stats: {
+          total: totalPersonnel,
+          active: activePersonnel,
+          inactive: inactivePersonnel,
+          recentHires,
+          departmentBreakdown: departmentStats,
+          positionBreakdown: positionStats
+        }
       }
     });
   } catch (error) {
-    console.error('Error fetching personnel stats:', error);
+    console.error('Error getting personnel stats:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: 'Erreur lors de la récupération des statistiques du personnel'
     });
   }
 };
@@ -343,6 +469,34 @@ exports.updatePersonnelSchedule = async (req, res) => {
     res.status(400).json({
       status: 'error',
       message: error.message
+    });
+  }
+};
+
+// DELETE personnel
+exports.deletePersonnel = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const personnel = await Personnel.findById(id);
+    if (!personnel) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Employé non trouvé'
+      });
+    }
+
+    await Personnel.findByIdAndDelete(id);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Employé supprimé avec succès'
+    });
+  } catch (error) {
+    console.error('Error deleting personnel:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Erreur lors de la suppression de l\'employé'
     });
   }
 };

@@ -1,3 +1,4 @@
+
 const mongoose = require('mongoose');
 
 /**
@@ -75,38 +76,52 @@ const mongoose = require('mongoose');
  *         estActif: true
  */
 const personnelSchema = new mongoose.Schema({
+  identifier: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    index: true
+  },
   firstName: {
     type: String,
-    required: [true, 'Le prénom est requis']
+    required: true,
+    trim: true
   },
   lastName: {
     type: String,
-    required: [true, 'Le nom est requis']
+    required: true,
+    trim: true
+  },
+  nom: {
+    type: String,
+    trim: true
   },
   email: {
     type: String,
-    required: [true, 'L\'email est requis'],
+    required: true,
     unique: true,
-    lowercase: true,
     trim: true,
-    match: [/^\S+@\S+\.\S+$/, 'Veuillez fournir un email valide']
+    lowercase: true
   },
   telephone: {
     type: String,
+    required: true,
     trim: true
   },
   poste: {
     type: String,
-    required: [true, 'Le poste est requis']
+    required: true,
+    trim: true
   },
   departement: {
     type: String,
-    required: [true, 'Le département est requis'],
+    required: true,
     enum: ['Administration', 'Ressources Humaines', 'Sécurité', 'Restauration', 'Technique', 'Hébergement']
   },
   dateEmbauche: {
     type: Date,
-    required: [true, 'La date d\'embauche est requise']
+    required: true
   },
   statut: {
     type: String,
@@ -114,36 +129,46 @@ const personnelSchema = new mongoose.Schema({
     default: 'actif'
   },
   adresse: {
-    type: String
-  },
-  role: {
     type: String,
-    enum: ['admin', 'manager', 'employee'],
-    default: 'employee'
-  },
-  permissions: {
-    type: [String],
-    enum: ['view', 'edit', 'delete', 'approve'],
-    default: ['view']
-  },
-  avatar: {
-    type: String
-  },
-  schedule: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
+    trim: true
   }
 }, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  timestamps: true
 });
 
-// Virtual property for full name
-personnelSchema.virtual('fullName').get(function() {
-  return `${this.firstName} ${this.lastName}`;
+// Pre-save middleware to generate identifier and nom
+personnelSchema.pre('save', async function(next) {
+  if (this.isNew && !this.identifier) {
+    try {
+      const currentYear = new Date().getFullYear();
+      let isUnique = false;
+      let identifier;
+      
+      while (!isUnique) {
+        const randomNumber = Math.floor(Math.random() * 9000) + 1000;
+        identifier = `EMP${currentYear}${randomNumber}`;
+        
+        const existingEmployee = await this.constructor.findOne({ identifier });
+        if (!existingEmployee) {
+          isUnique = true;
+        }
+      }
+      
+      this.identifier = identifier;
+    } catch (error) {
+      return next(error);
+    }
+  }
+  
+  // Auto-generate nom field
+  if (this.firstName && this.lastName) {
+    this.nom = `${this.firstName} ${this.lastName}`;
+  }
+  
+  next();
 });
 
-const Personnel = mongoose.model('Personnel', personnelSchema);
+// Check if model already exists to prevent overwrite error
+const Personnel = mongoose.models.Personnel || mongoose.model('Personnel', personnelSchema);
 
 module.exports = Personnel;
