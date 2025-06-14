@@ -117,13 +117,29 @@ const StagiairesList = ({
     return count;
   };
 
+  // Replace the getFilterCount function with this improved version:
   const getFilterCount = (filterType) => {
-    // Example logic to get the count of items matching the filter
     return stagiaires.filter((stagiaire) => {
       if (filterType === 'active') return isStagiaireActif(stagiaire);
       if (filterType === 'inactive') return !isStagiaireActif(stagiaire);
-      if (filterType === 'withRoom') return stagiaire.chambre;
-      if (filterType === 'withoutRoom') return !stagiaire.chambre;
+      if (filterType === 'withRoom') {
+        // Check if stagiaire has a room assigned
+        const hasRoom = (stagiaire.chambreInfo && stagiaire.chambreInfo.numero) ||
+                       stagiaire.chambreNumero ||
+                       (stagiaire.chambre && stagiaire.chambre !== '' && 
+                        ((typeof stagiaire.chambre === 'object' && stagiaire.chambre.numero) ||
+                         (typeof stagiaire.chambre === 'string')));
+        return hasRoom;
+      }
+      if (filterType === 'withoutRoom') {
+        // Check if stagiaire does NOT have a room assigned
+        const hasRoom = (stagiaire.chambreInfo && stagiaire.chambreInfo.numero) ||
+                       stagiaire.chambreNumero ||
+                       (stagiaire.chambre && stagiaire.chambre !== '' && 
+                        ((typeof stagiaire.chambre === 'object' && stagiaire.chambre.numero) ||
+                         (typeof stagiaire.chambre === 'string')));
+        return !hasRoom;
+      }
       return false;
     }).length;
   };
@@ -229,7 +245,36 @@ const StagiairesList = ({
                   <BriefcaseIcon className="h-4 w-4 mr-1.5 text-gray-400" />
                   <span>Centre de formation</span>
                 </div>
-                <span className="font-medium text-gray-700 text-sm">{stagiaire.entreprise}</span>
+                <span className="font-medium text-gray-700 text-sm">{stagiaire.entreprise || stagiaire.centerName || stagiaire.assignedCenter || 'N/A'}</span>
+              </div>
+
+              {/* NEW: Session Information in Cards */}
+              <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                <div className="text-sm text-gray-700 flex items-center">
+                  <CalendarIcon className="h-4 w-4 mr-1.5 text-gray-400" />
+                  <span>Session</span>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="font-medium text-gray-700 text-sm">{stagiaire.sessionYear || 'N/A'}</span>
+                  {stagiaire.cycle && stagiaire.cycle !== 'externe' && (
+                    <span className={`mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      stagiaire.cycle === 'sep' ? 'bg-amber-100 text-amber-800' :
+                      stagiaire.cycle === 'nov' ? 'bg-orange-100 text-orange-800' :
+                      stagiaire.cycle === 'fev' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {stagiaire.cycle === 'sep' ? 'Septembre' :
+                       stagiaire.cycle === 'nov' ? 'Novembre' :
+                       stagiaire.cycle === 'fev' ? 'Février' :
+                       stagiaire.cycle}
+                    </span>
+                  )}
+                  {(stagiaire.type === 'externe' || stagiaire.cycle === 'externe') && (
+                    <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      Externe
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-between items-center pb-2 border-b border-gray-100">
@@ -237,7 +282,6 @@ const StagiairesList = ({
                   <OfficeBuildingIcon className="h-4 w-4 mr-1.5 text-gray-400" />
                   <span>Chambre</span>
                 </div>
-                {/* FIXED: Use getDisplayableRoom instead of getDisplayableChambre */}
                 {getDisplayableRoom(stagiaire) !== 'Non assignée' ? (
                   <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-xs font-medium">
                     {getDisplayableRoom(stagiaire)}
@@ -298,20 +342,23 @@ const StagiairesList = ({
     );
   };
 
-  // Update the component to properly handle room display
-  const getDisplayableRoom = (stagiaire) => {
+  // Replace the getDisplayableRoom function with this improved version:
 
-    // Check if the stagiaire has room information from the API
-    if (stagiaire.chambreInfo && stagiaire.chambreNumero) {
+  const getDisplayableRoom = (stagiaire) => {
+    // Check multiple possible room data sources
+    if (stagiaire.chambreInfo && stagiaire.chambreInfo.numero) {
+      return stagiaire.chambreInfo.numero;
+    }
+    
+    if (stagiaire.chambreNumero) {
       return stagiaire.chambreNumero;
     }
     
-    // Fallback to chambre field if it exists
     if (stagiaire.chambre) {
       if (typeof stagiaire.chambre === 'object' && stagiaire.chambre.numero) {
         return stagiaire.chambre.numero;
       }
-      if (typeof stagiaire.chambre === 'string') {
+      if (typeof stagiaire.chambre === 'string' && stagiaire.chambre !== '') {
         return stagiaire.chambre;
       }
     }
@@ -344,6 +391,17 @@ const StagiairesList = ({
                   <BriefcaseIcon className="h-4 w-4 mr-1.5 text-gray-400" />
                   <span>Centre de formation</span>
                   <SortIndicator field="entreprise" />
+                </div>
+              </th>
+              {/* NEW: Session Column */}
+              <th 
+                className={getHeaderCellClass('session')}
+                onClick={() => onSort('sessionYear')}
+              >
+                <div className="flex items-center">
+                  <CalendarIcon className="h-4 w-4 mr-1.5 text-gray-400" />
+                  <span>Session</span>
+                  <SortIndicator field="sessionYear" />
                 </div>
               </th>
               <th 
@@ -410,7 +468,43 @@ const StagiairesList = ({
                 <td className="py-3 px-6 whitespace-nowrap">
                   <div className="flex items-center">
                     <BriefcaseIcon className="h-4 w-4 mr-2 text-gray-400" />
-                    <span className="text-gray-700">{stagiaire.entreprise}</span>
+                    <span className="text-gray-700">{stagiaire.entreprise || stagiaire.centerName || stagiaire.assignedCenter || 'N/A'}</span>
+                  </div>
+                </td>
+                
+                {/* NEW: Session Column */}
+                <td className="py-3 px-6 whitespace-nowrap">
+                  <div className="flex flex-col">
+                    {/* Display session year */}
+                    <div className="text-gray-700 flex items-center">
+                      <span className="font-medium text-sm">{stagiaire.sessionYear || 'N/A'}</span>
+                    </div>
+                    
+                    {/* Display session month/cycle with appropriate styling */}
+                    {stagiaire.cycle && stagiaire.cycle !== 'externe' && (
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          stagiaire.cycle === 'sep' ? 'bg-amber-100 text-amber-800' :
+                          stagiaire.cycle === 'nov' ? 'bg-orange-100 text-orange-800' :
+                          stagiaire.cycle === 'fev' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {stagiaire.cycle === 'sep' ? '📚 Septembre' :
+                           stagiaire.cycle === 'nov' ? '🍂 Novembre' :
+                           stagiaire.cycle === 'fev' ? '❄️ Février' :
+                           stagiaire.cycle}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* For external stagiaires */}
+                    {(stagiaire.type === 'externe' || stagiaire.cycle === 'externe') && (
+                      <div className="mt-1">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          🏢 Externe
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </td>
                 
@@ -557,9 +651,21 @@ const StagiairesList = ({
   const handleExport = (count) => {
     setShowExportOptions(false);
     
-    // Call the parent component's onExport function
+    // Get the current filtered stagiaires
+    const stagiairesList = stagiaires; // This contains the already filtered results
+    
+    // Determine how many to export
+    let stagiaireToExport = [];
+    
+    if (count === 'all') {
+      stagiaireToExport = stagiairesList;
+    } else {
+      stagiaireToExport = stagiairesList.slice(0, parseInt(count));
+    }
+    
+    // Call the parent component's onExport function with the filtered data
     if (onExport) {
-      onExport(count);
+      onExport(stagiaireToExport, count);
     } else {
       console.error("onExport prop is not defined");
     }
@@ -595,42 +701,73 @@ const StagiairesList = ({
             
             {/* Export dropdown */}
             {showExportOptions && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-50 border border-gray-200">
                 <div className="p-2">
-                  <div className="text-xs font-medium text-gray-500 uppercase px-3 py-2">
-                    Nombre de stagiaires
+                  <div className="text-xs font-medium text-gray-500 uppercase px-3 py-2 flex items-center">
+                    <span>Exporter les résultats filtrés</span>
+                    {getActiveFilterCount() > 0 && (
+                      <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
+                        {getActiveFilterCount()} filtres
+                      </span>
+                    )}
                   </div>
-                  <button 
-                    onClick={() => handleExport(10)}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
-                  >
-                    10 stagiaires
-                  </button>
-                  <button 
-                    onClick={() => handleExport(20)}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
-                  >
-                    20 stagiaires
-                  </button>
-                  <button 
-                    onClick={() => handleExport(50)}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
-                  >
-                    50 stagiaires
-                  </button>
-                  <button 
-                    onClick={() => handleExport(200)}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
-                  >
-                    200 stagiaires
-                  </button>
+                  
+                  {/* Show available export options based on current results */}
+                  {stagiaires.length >= 10 && (
+                    <button 
+                      onClick={() => handleExport(10)}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
+                    >
+                      10 premiers stagiaires
+                    </button>
+                  )}
+                  
+                  {stagiaires.length >= 20 && (
+                    <button 
+                      onClick={() => handleExport(20)}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
+                    >
+                      20 premiers stagiaires
+                    </button>
+                  )}
+                  
+                  {stagiaires.length >= 50 && (
+                    <button 
+                      onClick={() => handleExport(50)}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
+                    >
+                      50 premiers stagiaires
+                    </button>
+                  )}
+                  
+                  {stagiaires.length >= 200 && (
+                    <button 
+                      onClick={() => handleExport(200)}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-md w-full text-left"
+                    >
+                      200 premiers stagiaires
+                    </button>
+                  )}
+                  
                   <div className="border-t border-gray-100 my-1"></div>
+                  
+                  {/* Always show option to export all current results */}
                   <button 
                     onClick={() => handleExport('all')}
-                    className="block px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 rounded-md w-full text-left"
+                    className="block px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 rounded-md w-full text-left flex items-center justify-between"
                   >
-                    Tous les stagiaires
+                    <span>Tous les résultats actuels</span>
+                    <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full">
+                      {stagiaires.length}
+                    </span>
                   </button>
+                  
+                  {/* Show message if no results */}
+                  {stagiaires.length === 0 && (
+                    <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                      Aucun stagiaire à exporter
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -695,7 +832,6 @@ const StagiairesList = ({
               </div>
             </div>
 
-            {/* Gardez les sections de filtres existantes... */}
             <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
 
             {/* Room Filters */}
@@ -888,7 +1024,7 @@ const StagiairesList = ({
                 Paiement:
               </div>
               
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 flex-wrap">
                 <button
                   className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
                     paymentStatusFilter === '' 
@@ -911,6 +1047,16 @@ const StagiairesList = ({
                 </button>
                 <button
                   className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                    paymentStatusFilter === 'unpaid' 
+                      ? 'bg-red-100 text-red-700 font-medium' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => handleFilterChange('paymentStatus', 'unpaid')}
+                >
+                  ❌ Non payé
+                </button>
+                <button
+                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
                     paymentStatusFilter === 'exempt' 
                       ? 'bg-blue-100 text-blue-700 font-medium' 
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -919,7 +1065,76 @@ const StagiairesList = ({
                 >
                   🎫 Dispensé
                 </button>
+                
+                {/* Trimester Filter - NEW ADDITION */}
+                {paymentStatusFilter && paymentStatusFilter !== '' && (
+                  <div className="flex items-center ml-2 pl-2 border-l border-gray-300">
+                    <span className="text-xs text-gray-500 mr-2">Trimestre:</span>
+                    <div className="flex gap-1">
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={localFilters.trimester1 || false}
+                          onChange={(e) => handleFilterChange('trimester1', e.target.checked)}
+                          className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span className="ml-1 text-xs text-gray-600">T1</span>
+                      </label>
+                      <label className="flex items-center ml-2">
+                        <input
+                          type="checkbox"
+                          checked={localFilters.trimester2 || false}
+                          onChange={(e) => handleFilterChange('trimester2', e.target.checked)}
+                          className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span className="ml-1 text-xs text-gray-600">T2</span>
+                      </label>
+                      <label className="flex items-center ml-2">
+                        <input
+                          type="checkbox"
+                          checked={localFilters.trimester3 || false}
+                          onChange={(e) => handleFilterChange('trimester3', e.target.checked)}
+                          className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span className="ml-1 text-xs text-gray-600">T3</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
+            </div>
+
+            <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
+
+            {/* Date Filters Toggle Button - NEW ADDITION */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={() => setShowDateFilters(!showDateFilters)}
+                className={`px-3 py-1.5 text-xs rounded-md transition-all flex items-center ${
+                  showDateFilters 
+                    ? 'bg-indigo-100 text-indigo-700 font-medium border border-indigo-200' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                }`}
+              >
+                <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
+                <span>Filtres par date</span>
+                <ChevronDownIcon className={`h-3.5 w-3.5 ml-1 transition-transform ${showDateFilters ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {/* Show active date filters indicator */}
+              {(localFilters.startDate || localFilters.endDate) && (
+                <div className="flex items-center text-xs text-indigo-600">
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-1"></div>
+                  <span>
+                    {localFilters.startDate && localFilters.endDate 
+                      ? 'Période active'
+                      : localFilters.startDate 
+                        ? 'Date début'
+                        : 'Date fin'
+                    }
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1259,6 +1474,7 @@ const StagiairesList = ({
                             ID: {stagiaireToDelete.identifier}
                           </p>
                         )}
+
                       </div>
                     )}
                   </div>

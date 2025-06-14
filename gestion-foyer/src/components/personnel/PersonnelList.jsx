@@ -70,10 +70,23 @@ const PersonnelList = ({
       <table className="w-full text-sm text-left text-gray-500">
         <thead className="text-xs text-gray-700 uppercase bg-gray-50">
           <tr>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Identifiant
+            </th>
             <th scope="col" className="px-6 py-3">
               <div className="flex items-center cursor-pointer" onClick={() => onSort('nom')}>
-                Employé
+                Nom
                 {sortBy === 'nom' && (
+                  sortOrder === 'asc' ? 
+                  <ChevronUpIcon className="w-4 h-4 ml-1" /> : 
+                  <ChevronDownIcon className="w-4 h-4 ml-1" />
+                )}
+              </div>
+            </th>
+            <th scope="col" className="px-6 py-3">
+              <div className="flex items-center cursor-pointer" onClick={() => onSort('email')}>
+                Email
+                {sortBy === 'email' && (
                   sortOrder === 'asc' ? 
                   <ChevronUpIcon className="w-4 h-4 ml-1" /> : 
                   <ChevronDownIcon className="w-4 h-4 ml-1" />
@@ -118,6 +131,11 @@ const PersonnelList = ({
         <tbody>
           {personnel.map((employee, index) => (
             <tr key={employee.id} className={index % 2 === 0 ? 'bg-white border-b' : 'bg-gray-50 border-b'}>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  {employee.identifier}
+                </span>
+              </td>
               <td className="px-6 py-4">
                 <div className="flex items-center space-x-3">
                   <div className="flex-shrink-0">
@@ -143,6 +161,9 @@ const PersonnelList = ({
                     <span className="text-xs text-gray-500">{employee.email}</span>
                   </div>
                 </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {employee.email}
               </td>
               <td className="px-6 py-4">
                 <div className="flex items-center">

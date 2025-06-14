@@ -40,8 +40,19 @@ export const getAllPersonnel = async (filters = {}) => {
     console.log('Final URL params:', params.toString());
     
     const response = await axiosInstance.get(`/api/v1/personnel?${params.toString()}`);
-    return response.data;
+    
+    console.log('Raw API response:', response.data); // Debug log
+    
+    // Extract the data from the nested structure and return it in a clean format
+    return {
+      personnel: response.data.data.personnel || [],  // Extract the personnel array
+      totalPages: response.data.totalPages || 1,
+      currentPage: response.data.currentPage || 1,
+      results: response.data.results || 0,
+      status: response.data.status
+    };
   } catch (error) {
+    console.error('Service error:', error);
     throw error.response?.data || error;
   }
 };

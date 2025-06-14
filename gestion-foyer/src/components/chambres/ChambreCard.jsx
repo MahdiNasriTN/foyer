@@ -141,7 +141,7 @@ const ChambreCard = ({ chambre, onAssign, onEdit, onDelete, refreshTrigger }) =>
         <div className="mt-5 pt-4 border-t border-gray-100 flex justify-end space-x-2">
           {/* View/Manage button - always available */}
           {/* Assign button - only show if user can assign (superadmin only) */}
-          {permissions.superadmin && (
+          {(
             <button
               onClick={() => onAssign(chambre)}
               className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100"

@@ -85,9 +85,9 @@ const Login = ({ onLogin }) => {
           >
             <div className="flex items-center space-x-3">
               <div className="bg-white rounded-xl p-2.5 shadow-lg">
-                <HomeIcon className="h-6 w-6 text-indigo-700" />
+                <img src="logo.jpg" alt="Foyer Manager Logo" className="h-16 w-16" />
               </div>
-              <h1 className="text-2xl font-bold">Foyer Manager</h1>
+              <h1 className="text-2xl font-bold">Agence Tunisienne de la Formation Professionnelle</h1>
             </div>
           </div>
           
@@ -129,7 +129,7 @@ const Login = ({ onLogin }) => {
           >
             <div className="pt-6 text-sm border-t border-blue-800/50">
               <p className="text-blue-200">
-                © 2025 Foyer Manager. Tous droits réservés.
+                © 2025 Centre Sectoriel de Formation en Cuir et Chaussures de Sakiet Ezzit. Tous droits réservés.
               </p>
             </div>
           </div>

@@ -618,5 +618,16 @@ export const updateStagiairePayment = async (stagiaireId, paymentData) => {
   }
 };
 
+// Check if superadmin exists
+export const checkSuperAdminExists = async () => {
+  try {
+    const response = await API.put(`/api/v1/auth/check-superadmin`);
+    return response.data;
+  } catch (error) {
+    console.error('Error checking superadmin:', error);
+    throw error;
+  }
+};
+
 // Default export for the API instance
 export default API;

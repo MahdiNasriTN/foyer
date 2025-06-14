@@ -13,7 +13,16 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
   const navigate = useNavigate();
   const permissions = usePermissions();
   
-  const [formData, setFormData] = useState(initialData || {
+  // Add this helper function to format dates for HTML inputs
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  };
+
+  const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     cinNumber: '',
@@ -27,8 +36,47 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
     email: '',
     phoneNumber: '',
     profilePhoto: null,
-    sexe: 'garcon', // Add gender field with default value
+    sexe: 'garcon',
+    // Add accommodation card field
+    carteHebergement: 'non', // Default to 'non'
+    // Payment fields for restauration only
+    restauration: false,
+    restaurationStatus: 'payé',
+    restaurationSemester1: '',
+    restaurationSemester2: '',
+    restaurationSemester3: '',
   });
+
+  // Add useEffect to handle data initialization for editing
+  useEffect(() => {
+    if (isEditing && initialData) {
+      setFormData({
+        ...initialData,
+        // Format dates for HTML date inputs
+        dateOfBirth: formatDateForInput(initialData.dateOfBirth),
+        trainingPeriodFrom: formatDateForInput(initialData.trainingPeriodFrom),
+        trainingPeriodTo: formatDateForInput(initialData.trainingPeriodTo),
+        // Handle other fields that might need formatting
+        assignedCenter: initialData.assignedCenter || initialData.entreprise || '',
+        sexe: initialData.sexe || 'garcon',
+        profilePhoto: initialData.profilePhoto || null,
+        
+        // Handle payment data if it exists
+        ...(initialData.payment && {
+          restauration: initialData.payment.restauration?.enabled || false,
+          restaurationStatus: initialData.payment.restauration?.status || 'payé',
+          restaurationSemester1: initialData.payment.restauration?.semester1Price ? initialData.payment.restauration.semester1Price.toString() : '',
+          restaurationSemester2: initialData.payment.restauration?.semester2Price ? initialData.payment.restauration.semester2Price.toString() : '',
+          restaurationSemester3: initialData.payment.restauration?.semester3Price ? initialData.payment.restauration.semester3Price.toString() : '',
+        })
+      });
+      
+      // Set preview image if it exists
+      if (initialData.profilePhoto) {
+        setPreviewImage(initialData.profilePhoto);
+      }
+    }
+  }, [isEditing, initialData]);
 
   // Animation d'entrée pour la photo
   useEffect(() => {
@@ -98,21 +146,55 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Add validation check
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.cinNumber) {
+      setError('Veuillez remplir tous les champs obligatoires.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
+
+    console.log('Form data being submitted:', formData);
 
     try {
       let response;
 
-      // Ajouter les champs sexe et email requis par le modèle MongoDB
+      // Prepare submission data with payment structure
       const submissionData = {
         ...formData,
-        sexe: formData.sexe || 'garcon', // Valeur par défaut
+        sexe: formData.sexe || 'garcon',
         email: formData.email || `${formData.firstName.toLowerCase()}.${formData.lastName.toLowerCase()}@example.com`,
         dateArrivee: formData.trainingPeriodFrom,
         dateDepart: formData.trainingPeriodTo,
-        entreprise: formData.assignedCenter
+        entreprise: formData.assignedCenter,
+        type: 'externe',
+        cycle: 'externe',
+        sessionYear: new Date().getFullYear().toString(),
+        nationality: 'Tunisienne',
+        currentSituation: 'Stagiaire Externe',
+        
+        // Add payment structure for restauration only
+        payment: {
+          restauration: {
+            enabled: formData.restauration,
+            status: formData.restaurationStatus || 'payé',
+            semester1Price: parseFloat(formData.restaurationSemester1) || 0,
+            semester2Price: parseFloat(formData.restaurationSemester2) || 0,
+            semester3Price: parseFloat(formData.restaurationSemester3) || 0
+          }
+        }
       };
+
+      // Remove flat payment fields
+      delete submissionData.restauration;
+      delete submissionData.restaurationStatus;
+      delete submissionData.restaurationSemester1;
+      delete submissionData.restaurationSemester2;
+      delete submissionData.restaurationSemester3;
+
+      console.log('Submission data:', submissionData);
 
       if (isEditing) {
         response = await updateStagiaire(initialData._id, submissionData);
@@ -120,13 +202,22 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
         response = await createExternStagiaire(submissionData);
       }
 
+      console.log('Response:', response);
+
       setLoading(false);
-      // Passer les données de la réponse au composant parent
-      onSave(response.data.stagiaire);
+      
+      if (response && response.data) {
+        if (onSave) {
+          onSave(response.data.stagiaire || response.data);
+        }
+      } else {
+        throw new Error('Invalid response from server');
+      }
+      
     } catch (err) {
       setLoading(false);
-      setError(err.message || "Une erreur s'est produite lors de l'enregistrement.");
       console.error("Erreur lors de l'enregistrement:", err);
+      setError(err.response?.data?.message || err.message || "Une erreur s'est produite lors de l'enregistrement.");
     }
   };
 
@@ -220,6 +311,14 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
         </span>
       </h2>
       
+      {/* Add error display */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-md">
+          <p className="font-medium">Erreur</p>
+          <p>{error}</p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Photo de profil - SECTION PREMIUM */}
         <div className={`${sectionClass} relative overflow-hidden bg-gradient-to-br from-white to-indigo-50/50`}>
@@ -587,18 +686,274 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
           </div>
         </div>
 
+        {/* Add a new section for Carte d'hébergement before payment section */}
+        <div className={`${sectionClass} bg-gradient-to-br from-white to-orange-50/30`}>
+          <h3 className={sectionHeaderClass}>
+            <span className="bg-orange-100 text-orange-700 p-1.5 rounded-lg">🏠</span>
+            Carte d'Hébergement
+          </h3>
+          
+          <div className="bg-gradient-to-br from-orange-50 to-yellow-50 p-4 rounded-lg border border-orange-200">
+            <div className="flex items-center space-x-6">
+              <span className="text-lg font-medium text-gray-700">Le stagiaire externe a-t-il une carte d'hébergement ?</span>
+              <div className="flex space-x-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="carteHebergement"
+                    value="oui"
+                    checked={formData.carteHebergement === 'oui'}
+                    onChange={(e) => {
+                      setFormData({
+                        ...formData,
+                        carteHebergement: e.target.value
+                      });
+                    }}
+                    className="h-4 w-4 text-orange-600 border-gray-300 focus:ring-orange-500"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">✅ Oui</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="carteHebergement"
+                    value="non"
+                    checked={formData.carteHebergement === 'non'}
+                    onChange={(e) => {
+                      setFormData({
+                        ...formData,
+                        carteHebergement: e.target.value
+                      });
+                    }}
+                    className="h-4 w-4 text-orange-600 border-gray-300 focus:ring-orange-500"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">❌ Non</span>
+                </label>
+              </div>
+            </div>
+            
+            {/* Optional: Add some context/explanation */}
+            <div className="mt-3 text-sm text-gray-600">
+              <p>ℹ️ La carte d'hébergement permet l'accès aux services de restauration et d'hébergement.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Add Payment Information Section for External Stagiaires */}
+        <div className={`${sectionClass} bg-gradient-to-br from-white to-green-50/30`}>
+          <h3 className={sectionHeaderClass}>
+            <span className="bg-emerald-100 text-emerald-700 p-1.5 rounded-lg">💰</span>
+            Informations de Paiement
+          </h3>
+          
+          <div className="space-y-6">
+            {/* Restauration Only for External Stagiaires */}
+            <div className="border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center mb-4">
+                <input
+                  type="checkbox"
+                  id="restauration"
+                  name="restauration"
+                  checked={formData.restauration}
+                  onChange={(e) => {
+                    setFormData({
+                      ...formData,
+                      restauration: e.target.checked
+                    });
+                  }}
+                  className="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                />
+                <label htmlFor="restauration" className="ml-3 text-lg font-medium text-gray-700">
+                  Restauration
+                </label>
+              </div>
+              
+              {formData.restauration && (
+                <div className="ml-7 space-y-4">
+                  <div className="bg-gradient-to-br from-blue-50 to-green-50 p-4 rounded-lg border border-gray-200">
+                    <h4 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
+                      🍽️ Restauration
+                    </h4>
+                    
+                    {/* Status Selection */}
+                    <div className="flex space-x-4 mb-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="restaurationStatus"
+                          value="payé"
+                          checked={formData.restaurationStatus === 'payé'}
+                          onChange={(e) => {
+                            setFormData({
+                              ...formData,
+                              restaurationStatus: e.target.value
+                            });
+                          }}
+                          className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Payé</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="restaurationStatus"
+                          value="dispensé"
+                          checked={formData.restaurationStatus === 'dispensé'}
+                          onChange={(e) => {
+                            setFormData({
+                              ...formData,
+                              restaurationStatus: e.target.value
+                            });
+                          }}
+                          className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Dispensé</span>
+                      </label>
+                    </div>
+                    
+                    {/* Price Inputs */}
+                    {formData.restaurationStatus === 'payé' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label htmlFor="restaurationTrimestre1" className={labelClass}>
+                              Trimestre 1 (DT)
+                            </label>
+                            <input
+                              type="number"
+                              id="restaurationTrimestre1"
+                              name="restaurationSemester1"
+                              value={formData.restaurationSemester1}
+                              onChange={(e) => {
+                                setFormData({
+                                  ...formData,
+                                  restaurationSemester1: e.target.value
+                                });
+                              }}
+                              placeholder="0.00"
+                              min="0"
+                              step="0.01"
+                              className={inputClass}
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="restaurationTrimestre2" className={labelClass}>
+                              Trimestre 2 (DT)
+                            </label>
+                            <input
+                              type="number"
+                              id="restaurationTrimestre2"
+                              name="restaurationSemester2"
+                              value={formData.restaurationSemester2}
+                              onChange={(e) => {
+                                setFormData({
+                                  ...formData,
+                                  restaurationSemester2: e.target.value
+                                });
+                              }}
+                              placeholder="0.00"
+                              min="0"
+                              step="0.01"
+                              className={inputClass}
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="restaurationTrimestre3" className={labelClass}>
+                              Trimestre 3 (DT)
+                            </label>
+                            <input
+                              type="number"
+                              id="restaurationTrimestre3"
+                              name="restaurationSemester3"
+                              value={formData.restaurationSemester3}
+                              onChange={(e) => {
+                                setFormData({
+                                  ...formData,
+                                  restaurationSemester3: e.target.value
+                                });
+                              }}
+                              placeholder="0.00"
+                              min="0"
+                              step="0.01"
+                              className={inputClass}
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Total Summary */}
+                        <div className="bg-white p-3 rounded-md border border-gray-200 mt-4">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-emerald-700">Total Restauration:</span>
+                            <span className="font-bold text-emerald-800">
+                              {((parseFloat(formData.restaurationSemester1) || 0) + 
+                                (parseFloat(formData.restaurationSemester2) || 0) + 
+                                (parseFloat(formData.restaurationSemester3) || 0)).toFixed(2)} DT
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Payment Summary */}
+            {formData.restauration && (
+              <div className="mt-6 p-4 bg-gradient-to-br from-emerald-50 to-green-50 rounded-lg border border-emerald-200">
+                <h4 className="text-lg font-semibold text-emerald-800 mb-3 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                  </svg>
+                  Résumé des Paiements
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 px-3 bg-white rounded-md border border-emerald-100">
+                    <span className="text-sm font-medium text-gray-700">
+                      🍽️ Restauration ({formData.restaurationStatus}):
+                    </span>
+                    <span className="font-semibold text-blue-700">
+                      {formData.restaurationStatus === 'payé' 
+                        ? `${((parseFloat(formData.restaurationSemester1) || 0) + 
+                             (parseFloat(formData.restaurationSemester2) || 0) + 
+                             (parseFloat(formData.restaurationSemester3) || 0)).toFixed(2)} DT`
+                        : 'Dispensé'
+                      }
+                    </span>
+                  </div>
+                  
+                  <div className="border-t border-emerald-200 pt-3 mt-3">
+                    <div className="flex justify-between items-center py-2 px-3 bg-emerald-100 rounded-md">
+                      <span className="font-bold text-emerald-800">Total à payer:</span>
+                      <span className="font-bold text-lg text-emerald-800">
+                        {formData.restaurationStatus === 'payé' 
+                          ? `${((parseFloat(formData.restaurationSemester1) || 0) + 
+                               (parseFloat(formData.restaurationSemester2) || 0) + 
+                               (parseFloat(formData.restaurationSemester3) || 0)).toFixed(2)} DT`
+                          : '0.00 DT'
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Buttons with premium styling */}
         <div className="flex justify-between items-center pt-6 border-t-2 border-indigo-100">
           <button
             type="button"
             onClick={() => {
               if (onCancel) {
-                onCancel(); // Use the onCancel prop if provided
+                onCancel();
               } else {
-                navigate('/stagiaires'); // Fallback to navigation
+                navigate('/stagiaires');
               }
             }}
-            className="group inline-flex items-center px-4 py-2 bg-white hover:bg-indigo-50 text-indigo-700 font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-indigo-200"
+            disabled={loading}
+            className="group inline-flex items-center px-4 py-2 bg-white hover:bg-indigo-50 text-indigo-700 font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-indigo-200 disabled:opacity-50"
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -614,12 +969,25 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
           
           <button
             type="submit"
-            className="group px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all flex items-center shadow-md hover:shadow-lg"
+            disabled={loading}
+            className="group px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all flex items-center shadow-md hover:shadow-lg disabled:opacity-50"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            {isEditing ? 'Mettre à jour' : 'Ajouter'}
+            {loading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Traitement en cours...
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {isEditing ? 'Mettre à jour' : 'Ajouter'}
+              </>
+            )}
           </button>
         </div>
       </form>

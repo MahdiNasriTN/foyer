@@ -30,9 +30,9 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     centerName: '',
     specialization: '',
     cycle: '',
-    sessionYear: new Date().getFullYear().toString(), // Default to current year
+    sessionYear: new Date().getFullYear().toString(),
     email: '',
-    sexe: 'garcon', // Add gender field with default value
+    sexe: 'garcon',
     fatherFirstName: '',
     fatherLastName: '',
     fatherPhone: '',
@@ -49,20 +49,25 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     trainingPeriodFrom: '',
     trainingPeriodTo: '',
     profilePhoto: null,
+    // Add accommodation card field
+    carteHebergement: 'non', // Default to 'non'
 
     // Payment fields
     restauration: false,
     foyer: false,
     inscription: false,
-    restaurationStatus: 'payé', // 'payé' or 'dispensé'
+    restaurationStatus: 'payé',
     foyerStatus: 'payé',
     inscriptionStatus: 'payé',
     restaurationSemester1: '',
     restaurationSemester2: '',
+    restaurationSemester3: '',
     foyerSemester1: '',
     foyerSemester2: '',
+    foyerSemester3: '',
     inscriptionSemester1: '',
     inscriptionSemester2: '',
+    inscriptionSemester3: '',
   });
 
   // Animation d'entrée pour la photo
@@ -70,52 +75,47 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     setTimeout(() => setAnimatePhoto(true), 300);
   }, []);
 
-  // Add this useEffect to handle payment data initialization for editing
+  // Add this helper function to format dates for HTML inputs
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  };
+
+  // Update the useEffect to handle all data initialization for editing
   useEffect(() => {
     if (isEditing && initialData) {
-      // If there's payment data in the initialData, transform it to flat structure
-      if (initialData.payment) {
-        const paymentData = initialData.payment;
+      // Set all form data including dates
+      setFormData(prevData => ({
+        ...prevData,
+        ...initialData,
+        // Format dates for HTML date inputs
+        dateOfBirth: formatDateForInput(initialData.dateOfBirth),
+        cinDate: formatDateForInput(initialData.cinDate),
+        dateArrivee: formatDateForInput(initialData.dateArrivee),
+        dateDepart: formatDateForInput(initialData.dateDepart),
+        trainingPeriodFrom: formatDateForInput(initialData.trainingPeriodFrom),
+        trainingPeriodTo: formatDateForInput(initialData.trainingPeriodTo),
         
-        setFormData(prevData => ({
-          ...prevData,
-          // Set payment checkboxes based on enabled status
-          restauration: paymentData.restauration?.enabled || false,
-          foyer: paymentData.foyer?.enabled || false,
-          inscription: paymentData.inscription?.enabled || false,
-          
-          // Set payment statuses
-          restaurationStatus: paymentData.restauration?.status || 'payé',
-          foyerStatus: paymentData.foyer?.status || 'payé',
-          inscriptionStatus: paymentData.inscription?.status || 'payé',
-          
-          // Set payment amounts (convert numbers to strings for inputs)
-          restaurationSemester1: paymentData.restauration?.semester1Price ? paymentData.restauration.semester1Price.toString() : '',
-          restaurationSemester2: paymentData.restauration?.semester2Price ? paymentData.restauration.semester2Price.toString() : '',
-          foyerSemester1: paymentData.foyer?.semester1Price ? paymentData.foyer.semester1Price.toString() : '',
-          foyerSemester2: paymentData.foyer?.semester2Price ? paymentData.foyer.semester2Price.toString() : '',
-          inscriptionSemester1: paymentData.inscription?.semester1Price ? paymentData.inscription.semester1Price.toString() : '',
-          inscriptionSemester2: paymentData.inscription?.semester2Price ? paymentData.inscription.semester2Price.toString() : '',
-        }));
-      }
-      // If payment data exists as flat structure (from backend transformation)
-      else if (initialData.restauration !== undefined || initialData.foyer !== undefined || initialData.inscription !== undefined) {
-        setFormData(prevData => ({
-          ...prevData,
-          restauration: initialData.restauration || false,
-          foyer: initialData.foyer || false,
-          inscription: initialData.inscription || false,
-          restaurationStatus: initialData.restaurationStatus || 'payé',
-          foyerStatus: initialData.foyerStatus || 'payé',
-          inscriptionStatus: initialData.inscriptionStatus || 'payé',
-          restaurationSemester1: initialData.restaurationSemester1?.toString() || '',
-          restaurationSemester2: initialData.restaurationSemester2?.toString() || '',
-          foyerSemester1: initialData.foyerSemester1?.toString() || '',
-          foyerSemester2: initialData.foyerSemester2?.toString() || '',
-          inscriptionSemester1: initialData.inscriptionSemester1?.toString() || '',
-          inscriptionSemester2: initialData.inscriptionSemester2?.toString() || '',
-        }));
-      }
+        // Handle payment data if it exists in the new structure
+        ...(initialData.payment && {
+          restauration: initialData.payment.restaurationFoyer?.enabled || false,
+          foyer: initialData.payment.restaurationFoyer?.enabled || false,
+          inscription: initialData.payment.inscription?.enabled || false,
+          restaurationStatus: initialData.payment.restaurationFoyer?.status || 'payé',
+          foyerStatus: initialData.payment.restaurationFoyer?.status || 'payé',
+          inscriptionStatus: initialData.payment.inscription?.status || 'payé',
+          restaurationSemester1: initialData.payment.restaurationFoyer?.semester1Price ? initialData.payment.restaurationFoyer.semester1Price.toString() : '',
+          restaurationSemester2: initialData.payment.restaurationFoyer?.semester2Price ? initialData.payment.restaurationFoyer.semester2Price.toString() : '',
+          restaurationSemester3: initialData.payment.restaurationFoyer?.semester3Price ? initialData.payment.restaurationFoyer.semester3Price.toString() : '',
+          foyerSemester1: initialData.payment.restaurationFoyer?.semester1Price ? initialData.payment.restaurationFoyer.semester1Price.toString() : '',
+          foyerSemester2: initialData.payment.restaurationFoyer?.semester2Price ? initialData.payment.restaurationFoyer.semester2Price.toString() : '',
+          foyerSemester3: initialData.payment.restaurationFoyer?.semester3Price ? initialData.payment.restaurationFoyer.semester3Price.toString() : '',
+          inscriptionAnnual: initialData.payment.inscription?.annualPrice ? initialData.payment.inscription.annualPrice.toString() : ''
+        })
+      }));
     }
   }, [isEditing, initialData]);
 
@@ -219,57 +219,61 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
   };
 
   const fillTestData = () => {
-  const testData = {
-    firstName: 'Mahdi',
-    lastName: 'Nasri',
-    cinNumber: '09876543',
-    cinPlace: 'Tunis',
-    cinDate: '2020-05-15',
-    dateOfBirth: '1998-03-12',
-    placeOfBirth: 'Sousse',
-    nationality: 'Tunisienne',
-    currentSituation: 'Stagiaire',
-    phoneNumber: '55123456',
-    sendingAddress: '25 Rue Ibn Khaldoun',
-    city: 'Tunis',
-    postalCode: '1002',
-    centerName: 'Institut Supérieur d\'Informatique',
-    specialization: 'Développement Web',
-    cycle: 'sep',
-    sessionYear: new Date().getFullYear().toString(),
-    email: 'mahdi.nasri@example.com',
-    sexe: 'garcon', // Include gender in test data
-    fatherFirstName: 'Ahmed',
-    fatherLastName: 'Nasri',
-    fatherPhone: '98765432',
-    fatherJob: 'Ingénieur',
-    fatherJobPlace: 'Société ABC',
-    motherFirstName: 'Fatima',
-    motherLastName: 'Nasri',
-    motherPhone: '55667788',
-    motherJob: 'Médecin',
-    motherJobPlace: 'Hôpital X',
-    numberOfBrothers: 1,
-    numberOfSisters: 2,
-    hobby: 'Football, Lecture, Voyages',
-    trainingPeriodFrom: '2023-09-01',
-    trainingPeriodTo: '2024-06-30',
-    restauration: true,
-    foyer: true,
-    inscription: true,
-    restaurationStatus: 'payé',
-    foyerStatus: 'payé',
-    inscriptionStatus: 'dispensé',
-    restaurationSemester1: '120.00',
-    restaurationSemester2: '120.00',
-    foyerSemester1: '80.00',
-    foyerSemester2: '80.00',
-    inscriptionSemester1: '',
-    inscriptionSemester2: '',
-  };
+    const testData = {
+      firstName: 'Mahdi',
+      lastName: 'Nasri',
+      cinNumber: '09876543',
+      cinPlace: 'Tunis',
+      cinDate: '2020-05-15',
+      dateOfBirth: '1998-03-12',
+      placeOfBirth: 'Sousse',
+      nationality: 'Tunisienne',
+      currentSituation: 'Stagiaire',
+      phoneNumber: '55123456',
+      sendingAddress: '25 Rue Ibn Khaldoun',
+      city: 'Tunis',
+      postalCode: '1002',
+      centerName: 'Institut Supérieur d\'Informatique',
+      specialization: 'Développement Web',
+      cycle: 'sep',
+      sessionYear: new Date().getFullYear().toString(),
+      email: 'mahdi.nasri@example.com',
+      sexe: 'garcon',
+      carteHebergement: 'oui', // Add to test data
+      fatherFirstName: 'Ahmed',
+      fatherLastName: 'Nasri',
+      fatherPhone: '98765432',
+      fatherJob: 'Ingénieur',
+      fatherJobPlace: 'Société ABC',
+      motherFirstName: 'Fatima',
+      motherLastName: 'Nasri',
+      motherPhone: '55667788',
+      motherJob: 'Médecin',
+      motherJobPlace: 'Hôpital X',
+      numberOfBrothers: 1,
+      numberOfSisters: 2,
+      hobby: 'Football, Lecture, Voyages',
+      trainingPeriodFrom: '2023-09-01',
+      trainingPeriodTo: '2024-06-30',
+      restauration: true,
+      foyer: true,
+      inscription: true,
+      restaurationStatus: 'payé',
+      foyerStatus: 'payé',
+      inscriptionStatus: 'dispensé',
+      restaurationSemester1: '120.00',
+      restaurationSemester2: '120.00',
+      restaurationSemester3: '120.00',
+      foyerSemester1: '120.00',
+      foyerSemester2: '120.00',
+      foyerSemester3: '120.00',
+      inscriptionSemester1: '',
+      inscriptionSemester2: '',
+      inscriptionSemester3: '',
+    };
 
-  setFormData(testData);
-};
+    setFormData(testData);
+  };
 
   const generateYearOptions = () => {
     const currentYear = new Date().getFullYear();
@@ -1082,7 +1086,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
           </div>
         </div>
 
-        {/* Additional Information Section */}
+        {/* Additional Information Section - Add Carte d'hébergement here */}
         <div className={sectionClass}>
           <h3 className={sectionHeaderClass}>
             <span className="bg-cyan-100 text-cyan-700 p-1.5 rounded-lg">➕</span>
@@ -1133,6 +1137,42 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                 className={inputClass}
               />
             </div>
+            
+            {/* Add Carte d'hébergement field */}
+            <div className="md:col-span-3 mt-6">
+              <div className="bg-gradient-to-br from-orange-50 to-yellow-50 p-4 rounded-lg border border-orange-200">
+                <h4 className="text-lg font-semibold text-orange-800 mb-3 flex items-center">
+                  🏠 Carte d'Hébergement
+                </h4>
+                <div className="flex items-center space-x-6">
+                  <span className="text-sm font-medium text-gray-700">Le stagiaire a-t-il une carte d'hébergement ?</span>
+                  <div className="flex space-x-4">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="carteHebergement"
+                        value="oui"
+                        checked={formData.carteHebergement === 'oui'}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-orange-600 border-gray-300 focus:ring-orange-500"
+                      />
+                      <span className="ml-2 text-sm font-medium text-gray-700">✅ Oui</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="carteHebergement"
+                        value="non"
+                        checked={formData.carteHebergement === 'non'}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-orange-600 border-gray-300 focus:ring-orange-500"
+                      />
+                      <span className="ml-2 text-sm font-medium text-gray-700">❌ Non</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1144,7 +1184,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
           </h3>
           
           <div className="space-y-6">
-            {/* Combined Restauration & Foyer */}
+            {/* Combined Restauration & Foyer - MERGED WITH SHARED VALUES */}
             <div className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center mb-4">
                 <input
@@ -1163,28 +1203,36 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                   className="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                 />
                 <label htmlFor="restaurationFoyer" className="ml-3 text-lg font-medium text-gray-700">
-                  Restauration & Foyer (Logement)
+                  Restauration & Foyer (Hébergement)
                 </label>
               </div>
               
               {(formData.restauration || formData.foyer) && (
-                <div className="ml-7 space-y-6">
-                  {/* Restauration Section */}
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <h4 className="text-md font-semibold text-blue-800 mb-3 flex items-center">
-                      🍽️ Restauration
+                <div className="ml-7 space-y-4">
+                  {/* Combined Status Selection */}
+                  <div className="bg-gradient-to-br from-blue-50 to-green-50 p-4 rounded-lg border border-gray-200">
+                    <h4 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
+                      🍽️🏠 Restauration & Foyer
                     </h4>
                     
-                    {/* Restauration Status Selection */}
+                    {/* Combined Status Selection */}
                     <div className="flex space-x-4 mb-4">
                       <label className="flex items-center">
                         <input
                           type="radio"
                           name="restaurationStatus"
                           value="payé"
-                          checked={formData.restaurationStatus === 'payé'}
-                          onChange={handleChange}
-                          className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                          checked={formData.restaurationStatus === 'payé' && formData.foyerStatus === 'payé'}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                restaurationStatus: 'payé',
+                                foyerStatus: 'payé'
+                              });
+                            }
+                          }}
+                          className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
                         />
                         <span className="ml-2 text-sm font-medium text-gray-700">Payé</span>
                       </label>
@@ -1193,119 +1241,107 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                           type="radio"
                           name="restaurationStatus"
                           value="dispensé"
-                          checked={formData.restaurationStatus === 'dispensé'}
-                          onChange={handleChange}
-                          className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                          checked={formData.restaurationStatus === 'dispensé' && formData.foyerStatus === 'dispensé'}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                restaurationStatus: 'dispensé',
+                                foyerStatus: 'dispensé'
+                              });
+                            }
+                          }}
+                          className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
                         />
                         <span className="ml-2 text-sm font-medium text-gray-700">Dispensé</span>
                       </label>
                     </div>
                     
-                    {/* Restauration Price Inputs */}
-                    {formData.restaurationStatus === 'payé' && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label htmlFor="restaurationSemester1" className={labelClass}>
-                            Prix Semestre 1 (DT)
-                          </label>
-                          <input
-                            type="number"
-                            id="restaurationSemester1"
-                            name="restaurationSemester1"
-                            value={formData.restaurationSemester1}
-                            onChange={handleChange}
-                            placeholder="0.00"
-                            min="0"
-                            step="0.01"
-                            className={inputClass}
-                          />
+                    {/* Shared Price Inputs - Single set for both Restauration & Foyer */}
+                    {formData.restaurationStatus === 'payé' && formData.foyerStatus === 'payé' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label htmlFor="restaurationFoyerTrimestre1" className={labelClass}>
+                              Trimestre 1 (DT)
+                            </label>
+                            <input
+                              type="number"
+                              id="restaurationFoyerTrimestre1"
+                              name="restaurationSemester1"
+                              value={formData.restaurationSemester1}
+                              onChange={(e) => {
+                                // Update both restauration and foyer with same value
+                                setFormData({
+                                  ...formData,
+                                  restaurationSemester1: e.target.value,
+                                  foyerSemester1: e.target.value
+                                });
+                              }}
+                              placeholder="0.00"
+                              min="0"
+                              step="0.01"
+                              className={inputClass}
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="restaurationFoyerTrimestre2" className={labelClass}>
+                              Trimestre 2 (DT)
+                            </label>
+                            <input
+                              type="number"
+                              id="restaurationFoyerTrimestre2"
+                              name="restaurationSemester2"
+                              value={formData.restaurationSemester2}
+                              onChange={(e) => {
+                                // Update both restauration and foyer with same value
+                                setFormData({
+                                  ...formData,
+                                  restaurationSemester2: e.target.value,
+                                  foyerSemester2: e.target.value
+                                });
+                              }}
+                              placeholder="0.00"
+                              min="0"
+                              step="0.01"
+                              className={inputClass}
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="restaurationFoyerTrimestre3" className={labelClass}>
+                              Trimestre 3 (DT)
+                            </label>
+                            <input
+                              type="number"
+                              id="restaurationFoyerTrimestre3"
+                              name="restaurationSemester3"
+                              value={formData.restaurationSemester3 || ''}
+                              onChange={(e) => {
+                                // Update both restauration and foyer with same value
+                                setFormData({
+                                  ...formData,
+                                  restaurationSemester3: e.target.value,
+                                  foyerSemester3: e.target.value
+                                });
+                              }}
+                              placeholder="0.00"
+                              min="0"
+                              step="0.01"
+                              className={inputClass}
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label htmlFor="restaurationSemester2" className={labelClass}>
-                            Prix Semestre 2 (DT)
-                          </label>
-                          <input
-                            type="number"
-                            id="restaurationSemester2"
-                            name="restaurationSemester2"
-                            value={formData.restaurationSemester2}
-                            onChange={handleChange}
-                            placeholder="0.00"
-                            min="0"
-                            step="0.01"
-                            className={inputClass}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Foyer Section */}
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h4 className="text-md font-semibold text-green-800 mb-3 flex items-center">
-                      🏠 Foyer (Logement)
-                    </h4>
-                    
-                    {/* Foyer Status Selection */}
-                    <div className="flex space-x-4 mb-4">
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="foyerStatus"
-                          value="payé"
-                          checked={formData.foyerStatus === 'payé'}
-                          onChange={handleChange}
-                          className="h-4 w-4 text-green-600 border-gray-300 focus:ring-green-500"
-                        />
-                        <span className="ml-2 text-sm font-medium text-gray-700">Payé</span>
-                      </label>
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="foyerStatus"
-                          value="dispensé"
-                          checked={formData.foyerStatus === 'dispensé'}
-                          onChange={handleChange}
-                          className="h-4 w-4 text-green-600 border-gray-300 focus:ring-green-500"
-                        />
-                        <span className="ml-2 text-sm font-medium text-gray-700">Dispensé</span>
-                      </label>
-                    </div>
-                    
-                    {/* Foyer Price Inputs */}
-                    {formData.foyerStatus === 'payé' && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label htmlFor="foyerSemester1" className={labelClass}>
-                            Prix Semestre 1 (DT)
-                          </label>
-                          <input
-                            type="number"
-                            id="foyerSemester1"
-                            name="foyerSemester1"
-                            value={formData.foyerSemester1}
-                            onChange={handleChange}
-                            placeholder="0.00"
-                            min="0"
-                            step="0.01"
-                            className={inputClass}
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor="foyerSemester2" className={labelClass}>
-                            Prix Semestre 2 (DT)
-                          </label>
-                          <input
-                            type="number"
-                            id="foyerSemester2"
-                            name="foyerSemester2"
-                            value={formData.foyerSemester2}
-                            onChange={handleChange}
-                            placeholder="0.00"
-                            min="0"
-                            step="0.01"
-                            className={inputClass}
-                          />
+                        
+                        {/* Total Summary */}
+                        <div className="bg-white p-3 rounded-md border border-gray-200 mt-4">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-emerald-700">Total Restauration & Foyer:</span>
+                            <span className="font-bold text-emerald-800">
+                              {((parseFloat(formData.restaurationSemester1) || 0) + 
+                                (parseFloat(formData.restaurationSemester2) || 0) + 
+                                (parseFloat(formData.restaurationSemester3) || 0)).toFixed(2)} DT
+                            </span>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1314,7 +1350,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
               )}
             </div>
 
-            {/* Inscription - Separate */}
+            {/* Inscription - Annual Payment */}
             <div className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center mb-4">
                 <input
@@ -1326,80 +1362,80 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                   className="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                 />
                 <label htmlFor="inscription" className="ml-3 text-lg font-medium text-gray-700">
-                  Inscription
+                  Inscription (Annuelle)
                 </label>
               </div>
               
               {formData.inscription && (
                 <div className="ml-7 space-y-4">
                   {/* Status Selection */}
-                  <div className="flex space-x-4">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="inscriptionStatus"
-                        value="payé"
-                        checked={formData.inscriptionStatus === 'payé'}
-                        onChange={handleChange}
-                        className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                      />
-                      <span className="ml-2 text-sm font-medium text-gray-700">Payé</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="inscriptionStatus"
-                        value="dispensé"
-                        checked={formData.inscriptionStatus === 'dispensé'}
-                        onChange={handleChange}
-                        className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                      />
-                      <span className="ml-2 text-sm font-medium text-gray-700">Dispensé</span>
-                    </label>
-                  </div>
-                  
-                  {/* Price Inputs for Payé */}
-                  {formData.inscriptionStatus === 'payé' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label htmlFor="inscriptionSemester1" className={labelClass}>
-                          Prix Semestre 1 (DT)
-                        </label>
+                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-4 rounded-lg border border-gray-200">
+                    <h4 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
+                      📋 Inscription Annuelle
+                    </h4>
+                    
+                    <div className="flex space-x-4 mb-4">
+                      <label className="flex items-center">
                         <input
-                          type="number"
-                          id="inscriptionSemester1"
-                          name="inscriptionSemester1"
-                          value={formData.inscriptionSemester1}
+                          type="radio"
+                          name="inscriptionStatus"
+                          value="payé"
+                          checked={formData.inscriptionStatus === 'payé'}
                           onChange={handleChange}
-                          placeholder="0.00"
-                          min="0"
-                          step="0.01"
-                          className={inputClass}
+                          className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
                         />
-                      </div>
-                      <div>
-                        <label htmlFor="inscriptionSemester2" className={labelClass}>
-                          Prix Semestre 2 (DT)
-                        </label>
+                        <span className="ml-2 text-sm font-medium text-gray-700">Payé</span>
+                      </label>
+                      <label className="flex items-center">
                         <input
-                          type="number"
-                          id="inscriptionSemester2"
-                          name="inscriptionSemester2"
-                          value={formData.inscriptionSemester2}
+                          type="radio"
+                          name="inscriptionStatus"
+                          value="dispensé"
+                          checked={formData.inscriptionStatus === 'dispensé'}
                           onChange={handleChange}
-                          placeholder="0.00"
-                          min="0"
-                          step="0.01"
-                          className={inputClass}
+                          className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
                         />
-                      </div>
+                        <span className="ml-2 text-sm font-medium text-gray-700">Dispensé</span>
+                      </label>
                     </div>
-                  )}
+                    
+                    {/* Annual Price Input */}
+                    {formData.inscriptionStatus === 'payé' && (
+                      <div className="space-y-4">
+                        <div className="max-w-xs">
+                          <label htmlFor="inscriptionAnnual" className={labelClass}>
+                            Montant Annuel (DT)
+                          </label>
+                          <input
+                            type="number"
+                            id="inscriptionAnnual"
+                            name="inscriptionAnnual"
+                            value={formData.inscriptionAnnual || ''}
+                            onChange={handleChange}
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                            className={inputClass}
+                          />
+                        </div>
+                        
+                        {/* Annual Total Summary */}
+                        <div className="bg-white p-3 rounded-md border border-gray-200">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-purple-700">Total Inscription Annuelle:</span>
+                            <span className="font-bold text-purple-800">
+                              {(parseFloat(formData.inscriptionAnnual) || 0).toFixed(2)} DT
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Payment Summary */}
+            {/* Payment Summary - Updated for annual inscription */}
             {(formData.restauration || formData.foyer || formData.inscription) && (
               <div className="mt-6 p-4 bg-gradient-to-br from-emerald-50 to-green-50 rounded-lg border border-emerald-200">
                 <h4 className="text-lg font-semibold text-emerald-800 mb-3 flex items-center">
@@ -1410,47 +1446,29 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                 </h4>
                 <div className="space-y-3">
                   {(formData.restauration || formData.foyer) && (
-                    <div className="bg-white p-3 rounded-md border border-emerald-100">
-                      <h5 className="font-medium text-gray-800 mb-2">Restauration & Foyer:</h5>
-                      <div className="space-y-1">
-                        {formData.restauration && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">
-                              🍽️ Restauration ({formData.restaurationStatus}):
-                            </span>
-                            <span className="font-semibold text-blue-700">
-                              {formData.restaurationStatus === 'payé' 
-                                ? `${((parseFloat(formData.restaurationSemester1) || 0) + (parseFloat(formData.restaurationSemester2) || 0)).toFixed(2)} DT`
-                                : 'Dispensé'
-                              }
-                            </span>
-                          </div>
-                        )}
-                        {formData.foyer && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">
-                              🏠 Foyer ({formData.foyerStatus}):
-                            </span>
-                            <span className="font-semibold text-green-700">
-                              {formData.foyerStatus === 'payé' 
-                                ? `${((parseFloat(formData.foyerSemester1) || 0) + (parseFloat(formData.foyerSemester2) || 0)).toFixed(2)} DT`
-                                : 'Dispensé'
-                              }
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                    <div className="flex justify-between items-center py-2 px-3 bg-white rounded-md border border-emerald-100">
+                      <span className="text-sm font-medium text-gray-700">
+                        🍽️🏠 Restauration & Foyer (Trimestres - {formData.restaurationStatus}):
+                      </span>
+                      <span className="font-semibold text-blue-700">
+                        {formData.restaurationStatus === 'payé' 
+                          ? `${((parseFloat(formData.restaurationSemester1) || 0) + 
+                               (parseFloat(formData.restaurationSemester2) || 0) + 
+                               (parseFloat(formData.restaurationSemester3) || 0)).toFixed(2)} DT`
+                          : 'Dispensé'
+                        }
+                      </span>
                     </div>
                   )}
                   
                   {formData.inscription && (
                     <div className="flex justify-between items-center py-2 px-3 bg-white rounded-md border border-emerald-100">
                       <span className="text-sm font-medium text-gray-700">
-                        📋 Inscription ({formData.inscriptionStatus}):
+                        📋 Inscription (Annuelle - {formData.inscriptionStatus}):
                       </span>
-                      <span className="font-semibold text-emerald-700">
+                      <span className="font-semibold text-purple-700">
                         {formData.inscriptionStatus === 'payé' 
-                          ? `${((parseFloat(formData.inscriptionSemester1) || 0) + (parseFloat(formData.inscriptionSemester2) || 0)).toFixed(2)} DT`
+                          ? `${(parseFloat(formData.inscriptionAnnual) || 0).toFixed(2)} DT`
                           : 'Dispensé'
                         }
                       </span>
@@ -1463,14 +1481,15 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                       <span className="font-bold text-lg text-emerald-800">
                         {(() => {
                           let total = 0;
-                          if (formData.restauration && formData.restaurationStatus === 'payé') {
-                            total += (parseFloat(formData.restaurationSemester1) || 0) + (parseFloat(formData.restaurationSemester2) || 0);
+                          // For combined restauration & foyer, only count once
+                          if ((formData.restauration || formData.foyer) && formData.restaurationStatus === 'payé') {
+                            total += (parseFloat(formData.restaurationSemester1) || 0) + 
+                                    (parseFloat(formData.restaurationSemester2) || 0) + 
+                                    (parseFloat(formData.restaurationSemester3) || 0);
                           }
-                          if (formData.foyer && formData.foyerStatus === 'payé') {
-                            total += (parseFloat(formData.foyerSemester1) || 0) + (parseFloat(formData.foyerSemester2) || 0);
-                          }
+                          // Annual inscription
                           if (formData.inscription && formData.inscriptionStatus === 'payé') {
-                            total += (parseFloat(formData.inscriptionSemester1) || 0) + (parseFloat(formData.inscriptionSemester2) || 0);
+                            total += (parseFloat(formData.inscriptionAnnual) || 0);
                           }
                           return `${total.toFixed(2)} DT`;
                         })()}

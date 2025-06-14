@@ -272,13 +272,13 @@ const navItems = [
         className={`flex items-center py-6 px-5 border-b border-gray-800 ${collapsed ? 'justify-center' : ''}`}
       >
         {collapsed ? (
-          <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-600">
-            <span className="text-lg font-bold text-white">F</span>
+          <div className="w-10 h-10 flex items-center justify-center rounded-lg">
+            <img src="logocenter.png" alt="Logo" className="w-10 h-10 rounded-full" />
           </div>
         ) : (
           <div className="flex items-center">
-            <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-600 mr-3">
-              <span className="text-lg font-bold text-white">F</span>
+            <div className="w-10 h-10 flex items-center justify-center rounded-lg mr-3">
+              <img src="logocenter.png" alt="Logo" className="w-10 h-10 rounded-full" />
             </div>
             <div>
               <h1 className="text-lg font-bold text-white">Gestion De Foyer</h1>

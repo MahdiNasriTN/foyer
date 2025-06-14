@@ -12,7 +12,7 @@ const PersonnelModal = ({ isOpen, onClose, onSave, onConfirm, employee, modalTyp
     dateEmbauche: '',
     statut: 'actif',
     adresse: '',
-    permissions: ['view']
+    identifier: '' // Removed permissions field
   });
 
   // Initialize form with employee data
@@ -25,10 +25,28 @@ const PersonnelModal = ({ isOpen, onClose, onSave, onConfirm, employee, modalTyp
         telephone: employee.telephone || '',
         poste: employee.poste || '',
         departement: employee.departement || '',
-        dateEmbauche: employee.dateEmbauche || '',
+        dateEmbauche: employee.dateEmbauche ? employee.dateEmbauche.split('T')[0] : '', // Format date for input
         statut: employee.statut || 'actif',
         adresse: employee.adresse || '',
-        permissions: employee.permissions || ['view']
+        identifier: employee.identifier || '' // Removed permissions
+      });
+    } else if (modalType === 'add') {
+      // Generate auto identifier for new employee, but allow it to be changed
+      const currentYear = new Date().getFullYear();
+      const randomNumber = Math.floor(Math.random() * 9000) + 1000; // 4-digit random number
+      const autoIdentifier = `EMP${currentYear}${randomNumber}`;
+      
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        telephone: '',
+        poste: '',
+        departement: '',
+        dateEmbauche: '',
+        statut: 'actif',
+        adresse: '',
+        identifier: autoIdentifier // Removed permissions
       });
     }
   }, [employee, modalType]);
@@ -37,16 +55,6 @@ const PersonnelModal = ({ isOpen, onClose, onSave, onConfirm, employee, modalTyp
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Handle permission checkbox changes
-  const handlePermissionChange = (permission) => {
-    setFormData(prev => {
-      const newPermissions = prev.permissions.includes(permission) 
-        ? prev.permissions.filter(p => p !== permission)
-        : [...prev.permissions, permission];
-      return { ...prev, permissions: newPermissions };
-    });
   };
 
   // Handle form submission
@@ -142,6 +150,27 @@ const PersonnelModal = ({ isOpen, onClose, onSave, onConfirm, employee, modalTyp
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 required
               />
+            </div>
+            
+            {/* UPDATED: Identifier field - now editable */}
+            <div>
+              <label htmlFor="identifier" className="block text-sm font-medium text-gray-700">
+                Identifiant
+              </label>
+              <input
+                type="text"
+                name="identifier"
+                id="identifier"
+                value={formData.identifier}
+                onChange={handleChange}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                required
+                placeholder="EMP20241234"
+                // Removed readOnly restriction
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Identifiant unique (format suggéré: EMP + année + 4 chiffres)
+              </p>
             </div>
             
             <div>
@@ -254,41 +283,6 @@ const PersonnelModal = ({ isOpen, onClose, onSave, onConfirm, employee, modalTyp
                 onChange={handleChange}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Permissions
-              </label>
-              <div className="space-x-4">
-                <label className="inline-flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.permissions.includes('view')}
-                    onChange={() => handlePermissionChange('view')}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-700">Lecture</span>
-                </label>
-                <label className="inline-flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.permissions.includes('edit')}
-                    onChange={() => handlePermissionChange('edit')}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-700">Modification</span>
-                </label>
-                <label className="inline-flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.permissions.includes('delete')}
-                    onChange={() => handlePermissionChange('delete')}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-700">Suppression</span>
-                </label>
-              </div>
             </div>
           </div>
           

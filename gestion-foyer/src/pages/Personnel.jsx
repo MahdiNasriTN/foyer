@@ -86,17 +86,24 @@ const Personnel = () => {
 
       const response = await getAllPersonnel(apiFilters);
       
+      console.log('loadPersonnel - received response:', response); // Debug log
+      
+      // FIXED: Use the correct response structure
+      // The updated service returns { personnel: [...], totalPages: ..., etc }
+      const personnelData = response.personnel || []; // Get the personnel array
+    
       // Transformation des données pour la cohérence avec notre frontend
-      const formattedPersonnel = response.data.map(emp => ({
+      const formattedPersonnel = personnelData.map(emp => ({
         ...emp,
         id: emp._id,
         nom: `${emp.firstName} ${emp.lastName}`
       }));
-      
+    
       setPersonnel(formattedPersonnel);
     } catch (error) {
       console.error('Error loading personnel:', error);
       setError(error.message || "Impossible de charger les données du personnel");
+      setPersonnel([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
