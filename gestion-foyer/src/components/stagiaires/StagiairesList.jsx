@@ -72,7 +72,23 @@ const StagiairesList = ({
   // Update your handleFilterChange function
   const handleFilterChange = (filterType, value) => {
     if (filterType === 'paymentStatus') {
+      // Legacy support - remove this once fully migrated
       setPaymentStatusFilter(value);
+    } else if (filterType === 'hebergementPaymentStatus') {
+      setLocalFilters((prevFilters) => ({
+        ...prevFilters,
+        hebergementPaymentStatus: value
+      }));
+    } else if (filterType === 'inscriptionPaymentStatus') {
+      setLocalFilters((prevFilters) => ({
+        ...prevFilters,
+        inscriptionPaymentStatus: value
+      }));
+    } else if (filterType.startsWith('hebergementTrimester')) {
+      setLocalFilters((prevFilters) => ({
+        ...prevFilters,
+        [filterType]: value
+      }));
     } else {
       setLocalFilters((prevFilters) => ({
         ...prevFilters,
@@ -85,7 +101,8 @@ const StagiairesList = ({
   const applyFilters = () => {
     const filtersToApply = {
       ...localFilters,
-      paymentStatus: paymentStatusFilter // Make sure this is included
+      // Include legacy payment filter for backwards compatibility
+      paymentStatus: paymentStatusFilter
     };
     
     onApplyFilters(filtersToApply);
@@ -101,18 +118,26 @@ const StagiairesList = ({
       session: 'all',
       year: 'all',
       startDate: '',
-      endDate: ''
+      endDate: '',
+      // NEW: Reset separate payment filters
+      hebergementPaymentStatus: '',
+      inscriptionPaymentStatus: '',
+      hebergementTrimester1: false,
+      hebergementTrimester2: false,
+      hebergementTrimester3: false
     });
-    setPaymentStatusFilter(''); // Reset payment filter
+    setPaymentStatusFilter(''); // Keep for legacy support
     onResetFilters();
   };
 
   const getActiveFilterCount = () => {
     let count = 0;
-    Object.values(localFilters).forEach((value) => {
-      if (value && value !== 'all' && value !== '') count++;
+    Object.entries(localFilters).forEach(([key, value]) => {
+      if (key.includes('PaymentStatus') && value && value !== '') count++;
+      else if (key.includes('Trimester') && value === true) count++;
+      else if (value && value !== 'all' && value !== '' && value !== false) count++;
     });
-    // Add payment filter to count
+    // Add legacy payment filter to count
     if (paymentStatusFilter && paymentStatusFilter !== '') count++;
     return count;
   };
@@ -123,7 +148,11 @@ const StagiairesList = ({
       if (filterType === 'active') return isStagiaireActif(stagiaire);
       if (filterType === 'inactive') return !isStagiaireActif(stagiaire);
       if (filterType === 'withRoom') {
-        // Check if stagiaire has a room assigned
+        // UPDATED: External stagiaires don't count as having rooms
+        if (stagiaire.type === 'externe' || stagiaire.cycle === 'externe') {
+          return false;
+        }
+        // Check if internal stagiaire has a room assigned
         const hasRoom = (stagiaire.chambreInfo && stagiaire.chambreInfo.numero) ||
                        stagiaire.chambreNumero ||
                        (stagiaire.chambre && stagiaire.chambre !== '' && 
@@ -132,7 +161,11 @@ const StagiairesList = ({
         return hasRoom;
       }
       if (filterType === 'withoutRoom') {
-        // Check if stagiaire does NOT have a room assigned
+        // UPDATED: External stagiaires don't count as without rooms either
+        if (stagiaire.type === 'externe' || stagiaire.cycle === 'externe') {
+          return false;
+        }
+        // Check if internal stagiaire does NOT have a room assigned
         const hasRoom = (stagiaire.chambreInfo && stagiaire.chambreInfo.numero) ||
                        stagiaire.chambreNumero ||
                        (stagiaire.chambre && stagiaire.chambre !== '' && 
@@ -282,15 +315,32 @@ const StagiairesList = ({
                   <OfficeBuildingIcon className="h-4 w-4 mr-1.5 text-gray-400" />
                   <span>Chambre</span>
                 </div>
-                {getDisplayableRoom(stagiaire) !== 'Non assignée' ? (
-                  <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-xs font-medium">
-                    {getDisplayableRoom(stagiaire)}
-                  </span>
-                ) : (
-                  <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-md text-xs font-medium">
-                    Non assignée
-                  </span>
-                )}
+                {(() => {
+                  const roomDisplay = getDisplayableRoom(stagiaire);
+                  
+                  if (roomDisplay === '-') {
+                    // External stagiaire - show dash with different styling
+                    return (
+                      <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-medium">
+                        Externe
+                      </span>
+                    );
+                  } else if (roomDisplay !== 'Non assignée') {
+                    // Internal stagiaire with room
+                    return (
+                      <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-xs font-medium">
+                        {roomDisplay}
+                      </span>
+                    );
+                  } else {
+                    // Internal stagiaire without room
+                    return (
+                      <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-md text-xs font-medium">
+                        Non assignée
+                      </span>
+                    );
+                  }
+                })()}
               </div>
 
               <div className="flex items-center text-sm text-gray-600">
@@ -345,7 +395,12 @@ const StagiairesList = ({
   // Replace the getDisplayableRoom function with this improved version:
 
   const getDisplayableRoom = (stagiaire) => {
-    // Check multiple possible room data sources
+    // Check if stagiaire is external - return "-" immediately
+    if (stagiaire.type === 'externe' || stagiaire.cycle === 'externe') {
+      return '-';
+    }
+    
+    // For internal stagiaires, check multiple possible room data sources
     if (stagiaire.chambreInfo && stagiaire.chambreInfo.numero) {
       return stagiaire.chambreInfo.numero;
     }
@@ -496,35 +551,49 @@ const StagiairesList = ({
                         </span>
                       </div>
                     )}
-                    
-                    {/* For external stagiaires */}
-                    {(stagiaire.type === 'externe' || stagiaire.cycle === 'externe') && (
-                      <div className="mt-1">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                          🏢 Externe
-                        </span>
-                      </div>
-                    )}
+
                   </div>
                 </td>
                 
                 <td className="py-3 px-6 whitespace-nowrap">
-                  {/* FIXED: Use getDisplayableRoom instead of getDisplayableChambre */}
-                  {getDisplayableRoom(stagiaire) !== 'Non assignée' ? (
-                    <div className="flex items-center">
-                      <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-xs font-medium inline-flex items-center">
-                        <CheckCircleIcon className="h-3.5 w-3.5 mr-1" />
-                        {getDisplayableRoom(stagiaire)}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center">
-                      <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-md text-xs font-medium inline-flex items-center">
-                        <ExclamationIcon className="h-3.5 w-3.5 mr-1" />
-                        Non assignée
-                      </span>
-                    </div>
-                  )}
+                  {/* UPDATED: Handle external stagiaires differently */}
+                  {(() => {
+                    const roomDisplay = getDisplayableRoom(stagiaire);
+                    
+                    if (roomDisplay === '-') {
+                      // External stagiaire - show dash with different styling
+                      return (
+                        <div className="flex items-center">
+                          <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-medium inline-flex items-center">
+                            <svg className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                            </svg>
+                            Externe
+                          </span>
+                        </div>
+                      );
+                    } else if (roomDisplay !== 'Non assignée') {
+                      // Internal stagiaire with room
+                      return (
+                        <div className="flex items-center">
+                          <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-xs font-medium inline-flex items-center">
+                            <CheckCircleIcon className="h-3.5 w-3.5 mr-1" />
+                            {roomDisplay}
+                          </span>
+                        </div>
+                      );
+                    } else {
+                      // Internal stagiaire without room
+                      return (
+                        <div className="flex items-center">
+                          <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-md text-xs font-medium inline-flex items-center">
+                            <ExclamationIcon className="h-3.5 w-3.5 mr-1" />
+                            Non assignée
+                          </span>
+                        </div>
+                      );
+                    }
+                  })()}
                 </td>
                 
                 <td className="py-3 px-6 whitespace-nowrap">
@@ -883,6 +952,11 @@ const StagiairesList = ({
                     className="w-16 h-7 text-xs border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
+                
+                {/* NEW: Add note about external stagiaires */}
+                <div className="text-xs text-gray-400 italic ml-2">
+                  (Les stagiaires externes n'ont pas de chambre)
+                </div>
               </div>
             </div>
 
@@ -1015,7 +1089,7 @@ const StagiairesList = ({
 
             <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
 
-            {/* Payment Status Filters */}
+            {/* Payment Status Filters - UPDATED: Compact design in same row */}
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="text-xs font-medium text-gray-500 uppercase flex items-center mr-2">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
@@ -1024,83 +1098,143 @@ const StagiairesList = ({
                 Paiement:
               </div>
               
-              <div className="flex gap-1.5 flex-wrap">
-                <button
-                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
-                    paymentStatusFilter === '' 
-                      ? 'bg-blue-100 text-blue-700 font-medium' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  onClick={() => handleFilterChange('paymentStatus', '')}
-                >
-                  Tous
-                </button>
-                <button
-                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
-                    paymentStatusFilter === 'paid' 
-                      ? 'bg-green-100 text-green-700 font-medium' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  onClick={() => handleFilterChange('paymentStatus', 'paid')}
-                >
-                  💰 Payé
-                </button>
-                <button
-                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
-                    paymentStatusFilter === 'unpaid' 
-                      ? 'bg-red-100 text-red-700 font-medium' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  onClick={() => handleFilterChange('paymentStatus', 'unpaid')}
-                >
-                  ❌ Non payé
-                </button>
-                <button
-                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
-                    paymentStatusFilter === 'exempt' 
-                      ? 'bg-blue-100 text-blue-700 font-medium' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  onClick={() => handleFilterChange('paymentStatus', 'exempt')}
-                >
-                  🎫 Dispensé
-                </button>
-                
-                {/* Trimester Filter - NEW ADDITION */}
-                {paymentStatusFilter && paymentStatusFilter !== '' && (
-                  <div className="flex items-center ml-2 pl-2 border-l border-gray-300">
-                    <span className="text-xs text-gray-500 mr-2">Trimestre:</span>
-                    <div className="flex gap-1">
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={localFilters.trimester1 || false}
-                          onChange={(e) => handleFilterChange('trimester1', e.target.checked)}
-                          className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <span className="ml-1 text-xs text-gray-600">T1</span>
-                      </label>
-                      <label className="flex items-center ml-2">
-                        <input
-                          type="checkbox"
-                          checked={localFilters.trimester2 || false}
-                          onChange={(e) => handleFilterChange('trimester2', e.target.checked)}
-                          className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <span className="ml-1 text-xs text-gray-600">T2</span>
-                      </label>
-                      <label className="flex items-center ml-2">
-                        <input
-                          type="checkbox"
-                          checked={localFilters.trimester3 || false}
-                          onChange={(e) => handleFilterChange('trimester3', e.target.checked)}
-                          className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <span className="ml-1 text-xs text-gray-600">T3</span>
-                      </label>
-                    </div>
+              <div className="flex flex-wrap gap-2">
+                {/* Hébergement & Restauration Payment Section - Inline */}
+                <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2 border border-blue-100">
+                  <div className="text-xs font-medium text-blue-700 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                    🍽️ Hébergement:
                   </div>
-                )}
+                  
+                  <div className="flex gap-1">
+                    <button
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        localFilters.hebergementPaymentStatus === '' 
+                          ? 'bg-blue-200 text-blue-800 font-medium' 
+                          : 'bg-white text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => handleFilterChange('hebergementPaymentStatus', '')}
+                    >
+                      Tous
+                    </button>
+                    <button
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        localFilters.hebergementPaymentStatus === 'paid' 
+                          ? 'bg-green-200 text-green-800 font-medium' 
+                          : 'bg-white text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => handleFilterChange('hebergementPaymentStatus', 'paid')}
+                    >
+                      💰 Payé
+                    </button>
+                    <button
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        localFilters.hebergementPaymentStatus === 'unpaid' 
+                          ? 'bg-red-200 text-red-800 font-medium' 
+                          : 'bg-white text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => handleFilterChange('hebergementPaymentStatus', 'unpaid')}
+                    >
+                      ❌ Non payé
+                    </button>
+                    <button
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        localFilters.hebergementPaymentStatus === 'exempt' 
+                          ? 'bg-blue-200 text-blue-800 font-medium' 
+                          : 'bg-white text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => handleFilterChange('hebergementPaymentStatus', 'exempt')}
+                    >
+                      🎫 Dispensé
+                    </button>
+                  </div>
+                  
+                  {/* Trimester checkboxes - compact inline */}
+                  {localFilters.hebergementPaymentStatus && localFilters.hebergementPaymentStatus !== '' && (
+                    <div className="flex items-center ml-2 pl-2 border-l border-blue-200">
+                      <span className="text-xs text-blue-600 mr-1">T:</span>
+                      <div className="flex gap-1">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={localFilters.hebergementTrimester1 || false}
+                            onChange={(e) => handleFilterChange('hebergementTrimester1', e.target.checked)}
+                            className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <span className="ml-0.5 text-xs text-blue-700">1</span>
+                        </label>
+                        <label className="flex items-center ml-1">
+                          <input
+                            type="checkbox"
+                            checked={localFilters.hebergementTrimester2 || false}
+                            onChange={(e) => handleFilterChange('hebergementTrimester2', e.target.checked)}
+                            className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <span className="ml-0.5 text-xs text-blue-700">2</span>
+                        </label>
+                        <label className="flex items-center ml-1">
+                          <input
+                            type="checkbox"
+                            checked={localFilters.hebergementTrimester3 || false}
+                            onChange={(e) => handleFilterChange('hebergementTrimester3', e.target.checked)}
+                            className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <span className="ml-0.5 text-xs text-blue-700">3</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Inscription Payment Section - Inline and separate */}
+                <div className="flex items-center gap-2 bg-purple-50 rounded-lg px-3 py-2 border border-purple-100">
+                  <div className="text-xs font-medium text-purple-700 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    📋 Inscription:
+                  </div>
+                  
+                  <div className="flex gap-1">
+                    <button
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        localFilters.inscriptionPaymentStatus === '' 
+                          ? 'bg-purple-200 text-purple-800 font-medium' 
+                          : 'bg-white text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => handleFilterChange('inscriptionPaymentStatus', '')}
+                    >
+                      Tous
+                    </button>
+                    <button
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        localFilters.inscriptionPaymentStatus === 'paid' 
+                          ? 'bg-green-200 text-green-800 font-medium' 
+                          : 'bg-white text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => handleFilterChange('inscriptionPaymentStatus', 'paid')}
+                    >
+                      💰 Payé
+                    </button>
+                    <button
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        localFilters.inscriptionPaymentStatus === 'unpaid' 
+                          ? 'bg-red-200 text-red-800 font-medium' 
+                          : 'bg-white text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => handleFilterChange('inscriptionPaymentStatus', 'unpaid')}
+                    >
+                      ❌ Non payé
+                    </button>
+                  </div>
+                  
+                  {/* Note about inscription being mandatory */}
+                  <div className="text-xs text-purple-500 italic ml-2 hidden sm:block">
+                    (Obligatoire)
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1302,7 +1436,7 @@ const StagiairesList = ({
                     {(() => {
                       const start = new Date(localFilters.startDate);
                       const end = new Date(localFilters.endDate);
-                      const diffTime = Math.abs(end - start);
+                                           const diffTime = Math.abs(end - start);
                       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                       return <span className="ml-1 text-xs text-gray-500">({diffDays} jours)</span>;
                     })()}

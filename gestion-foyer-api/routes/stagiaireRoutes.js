@@ -10,7 +10,7 @@ router.use(protect);
 
 /**
  * @swagger
- * /api/stagiaires:
+ * /api/v1/stagiaires:
  *   get:
  *     tags:
  *       - Stagiaires
@@ -83,7 +83,7 @@ router.route('/').get(stagiaireController.getAllStagiaires);
 
 /**
  * @swagger
- * /api/stagiaires:
+ * /api/v1/stagiaires:
  *   post:
  *     tags:
  *       - Stagiaires

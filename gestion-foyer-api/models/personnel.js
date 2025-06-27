@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 
 /**
@@ -79,7 +78,7 @@ const personnelSchema = new mongoose.Schema({
   identifier: {
     type: String,
     required: true,
-    unique: true,
+    unique: true, // Already unique
     trim: true,
     index: true
   },
@@ -100,14 +99,17 @@ const personnelSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true,
+    unique: true, // Already unique
     trim: true,
-    lowercase: true
+    lowercase: true,
+    index: true
   },
   telephone: {
     type: String,
     required: true,
-    trim: true
+    unique: true, // NEW: Make telephone unique
+    trim: true,
+    index: true
   },
   poste: {
     type: String,
@@ -136,10 +138,17 @@ const personnelSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Pre-save middleware to generate identifier and nom
+// NEW: Add compound indexes for logical uniqueness
+personnelSchema.index({ firstName: 1, lastName: 1, dateEmbauche: 1 }, { 
+  unique: true, 
+  name: 'unique_person_hire_date'
+});
+
+// NEW: Enhanced pre-save validation
 personnelSchema.pre('save', async function(next) {
-  if (this.isNew && !this.identifier) {
-    try {
+  try {
+    // Generate identifier if new
+    if (this.isNew && !this.identifier) {
       const currentYear = new Date().getFullYear();
       let isUnique = false;
       let identifier;
@@ -155,17 +164,26 @@ personnelSchema.pre('save', async function(next) {
       }
       
       this.identifier = identifier;
-    } catch (error) {
-      return next(error);
     }
+    
+    // Auto-generate nom field
+    if (this.firstName && this.lastName) {
+      this.nom = `${this.firstName} ${this.lastName}`;
+    }
+    
+    // NEW: Validate and clean telephone
+    if (this.telephone) {
+      this.telephone = this.telephone.replace(/\s+/g, '').trim();
+      const phoneRegex = /^(\+216|0)?[2-9][0-9]{7}$/;
+      if (!phoneRegex.test(this.telephone)) {
+        return next(new Error('Format de téléphone invalide'));
+      }
+    }
+    
+    next();
+  } catch (error) {
+    next(error);
   }
-  
-  // Auto-generate nom field
-  if (this.firstName && this.lastName) {
-    this.nom = `${this.firstName} ${this.lastName}`;
-  }
-  
-  next();
 });
 
 // Check if model already exists to prevent overwrite error

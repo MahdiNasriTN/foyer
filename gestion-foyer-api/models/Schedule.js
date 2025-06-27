@@ -10,7 +10,8 @@ const scheduleSchema = new mongoose.Schema({
   day: {
     type: String,
     required: true,
-    enum: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+    enum: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'],
+    index: true
   },
   isDayOff: {
     type: Boolean,
@@ -47,21 +48,47 @@ const scheduleSchema = new mongoose.Schema({
     ref: 'User'
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
-// Compound index for efficient queries (simplified)
-scheduleSchema.index({ personnelId: 1, day: 1 }, { unique: true });
+// ENHANCED: Compound index for strict uniqueness
+scheduleSchema.index({ personnelId: 1, day: 1 }, { 
+  unique: true, 
+  name: 'unique_personnel_day_schedule'
+});
 
-// Validation for time logic
-scheduleSchema.pre('save', function(next) {
-  if (!this.isDayOff && this.startTime >= this.endTime) {
-    return next(new Error('L\'heure de fin doit être après l\'heure de début'));
+// Virtual for shift duration
+scheduleSchema.virtual('duration').get(function() {
+  if (this.isDayOff || !this.startTime || !this.endTime) {
+    return 0;
   }
+  return this.endTime - this.startTime;
+});
+
+// NEW: Enhanced pre-save validation
+scheduleSchema.pre('save', function(next) {
+  // Validate time logic
+  if (!this.isDayOff && this.startTime !== undefined && this.endTime !== undefined) {
+    if (this.startTime >= this.endTime) {
+      return next(new Error('L\'heure de fin doit être supérieure à l\'heure de début'));
+    }
+    
+    // Validate reasonable working hours
+    if (this.endTime - this.startTime > 12) {
+      return next(new Error('Une journée de travail ne peut pas dépasser 12 heures'));
+    }
+  }
+  
+  // Clear data for day off
+  if (this.isDayOff) {
+    this.startTime = undefined;
+    this.endTime = undefined;
+    this.tasks = [];
+  }
+  
   next();
 });
 
-// Check if model exists before creating
-const Schedule = mongoose.models.Schedule || mongoose.model('Schedule', scheduleSchema);
-
-module.exports = Schedule;
+module.exports = mongoose.model('Schedule', scheduleSchema);

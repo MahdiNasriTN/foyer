@@ -1,3 +1,4 @@
+
 // models/user.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -16,7 +17,8 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please provide your email'],
     unique: true,
-    lowercase: true
+    lowercase: true,
+    index: true // Add index for better performance
   },
   password: {
     type: String,
@@ -24,7 +26,12 @@ const userSchema = new mongoose.Schema({
     minlength: 8,
     select: false
   },
-  telephone: String,
+  telephone: {
+    type: String,
+    unique: true, // NEW: Make telephone unique
+    sparse: true, // Allow null values but ensure uniqueness when present
+    index: true
+  },
   role: {
     type: String,
     enum: ['admin', 'user', 'superadmin'],
@@ -59,6 +66,9 @@ const userSchema = new mongoose.Schema({
   }
 });
 
+// NEW: Add compound index to prevent duplicate full names in same department
+userSchema.index({ firstName: 1, lastName: 1, departement: 1 }, { unique: true, sparse: true });
+
 // Password hashing middleware
 userSchema.pre('save', async function(next) {
   // Only hash the password if it's modified
@@ -76,6 +86,21 @@ userSchema.pre('save', async function(next) {
     console.error('Error hashing password:', error);
     next(error);
   }
+});
+
+// NEW: Custom validation for telephone format
+userSchema.pre('save', function(next) {
+  if (this.telephone) {
+    // Clean and validate phone number format
+    this.telephone = this.telephone.replace(/\s+/g, '').trim();
+    
+    // Basic phone validation (adjust regex as needed)
+    const phoneRegex = /^(\+216|0)?[2-9][0-9]{7}$/;
+    if (!phoneRegex.test(this.telephone)) {
+      return next(new Error('Format de téléphone invalide'));
+    }
+  }
+  next();
 });
 
 // Define the compare password method directly using bcrypt

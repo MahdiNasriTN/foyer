@@ -9,7 +9,7 @@ router.use(protect);
 
 /**
  * @swagger
- * /api/chambres:
+ * /api/v1/chambres:
  *   get:
  *     tags:
  *       - Chambres
@@ -63,7 +63,7 @@ router.use(protect);
  */
 /**
  * @swagger
- * /api/chambres:
+ * /api/v1/chambres:
  *   post:
  *     tags:
  *       - Chambres
@@ -107,7 +107,7 @@ router
 
 /**
  * @swagger
- * /api/chambres/{id}:
+ * /api/v1/chambres/{id}:
  *   get:
  *     tags:
  *       - Chambres
@@ -147,7 +147,7 @@ router
  */
 /**
  * @swagger
- * /api/chambres/{id}:
+ * /api/v1/chambres/{id}:
  *   put:
  *     tags:
  *       - Chambres
@@ -195,7 +195,7 @@ router
  */
 /**
  * @swagger
- * /api/chambres/{id}:
+ * /api/v1/chambres/{id}:
  *   delete:
  *     tags:
  *       - Chambres
@@ -228,7 +228,7 @@ router
 
 /**
  * @swagger
- * /api/chambres/{id}/occupants:
+ * /api/v1/chambres/{id}/occupants:
  *   post:
  *     tags:
  *       - Chambres
@@ -286,7 +286,7 @@ router.post('/:id/occupants', chambreController.assignOccupants);
 
 /**
  * @swagger
- * /api/chambres/{id}/occupants:
+ * /api/v1/chambres/{id}/occupants:
  *   get:
  *     tags:
  *       - Chambres

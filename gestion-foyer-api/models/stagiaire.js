@@ -72,20 +72,26 @@ const Counter = mongoose.model('Counter', CounterSchema);
 const stagiaireSchema = new mongoose.Schema({
   firstName: {
     type: String,
-    required: [true, 'First name is required']
+    required: [true, 'First name is required'],
+    trim: true
   },
   lastName: {
     type: String,
-    required: [true, 'Last name is required']
+    required: [true, 'Last name is required'],
+    trim: true
   },
   identifier: {
     type: String,
-    unique: true
+    unique: true,
+    index: true
   },
   email: {
     type: String,
     required: [true, 'Email is required'],
-    unique: true,
+    unique: true, // Already unique
+    lowercase: true,
+    trim: true,
+    index: true,
     match: [
       /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
       'Please provide a valid email'
@@ -105,10 +111,16 @@ const stagiaireSchema = new mongoose.Schema({
     }
   },
   telephone: {
-    type: String
+    type: String,
+    unique: true, // NEW: Make telephone unique
+    sparse: true, // Allow null values but ensure uniqueness when present
+    index: true
   },
   phoneNumber: {
-    type: String
+    type: String,
+    unique: true, // NEW: Make phoneNumber unique
+    sparse: true,
+    index: true
   },
   sexe: {
     type: String,
@@ -137,10 +149,25 @@ const stagiaireSchema = new mongoose.Schema({
     default: 'interne'
   },
   cinNumber: {
-    type: String
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true,
+    trim: true,
+    validate: {
+      validator: function(v) {
+        // If CIN is provided, it must be exactly 8 digits
+        if (!v) return true; // Allow empty/null values
+        return /^[0-9]{8}$/.test(v);
+      },
+      message: 'Le numéro CIN doit contenir exactement 8 chiffres'
+    },
+    maxlength: [8, 'Le numéro CIN ne peut pas dépasser 8 caractères'],
+    minlength: [8, 'Le numéro CIN doit contenir exactement 8 chiffres']
   },
   cinPlace: {
-    type: String
+    type: String,
+    trim: true
   },
   cinDate: {
     type: Date
@@ -176,7 +203,8 @@ const stagiaireSchema = new mongoose.Schema({
     type: String
   },
   groupNumber: {
-    type: String
+    type: String,
+    trim: true
   },
   profilePhoto: {
     type: String
@@ -257,29 +285,86 @@ const stagiaireSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Modify pre-save middleware to use cycle instead of session
+// NEW: Add compound indexes for logical uniqueness
+stagiaireSchema.index({ firstName: 1, lastName: 1, dateOfBirth: 1 }, { 
+  unique: true, 
+  sparse: true,
+  name: 'unique_person_birthdate'
+});
+
+stagiaireSchema.index({ assignedCenter: 1, groupNumber: 1, sessionYear: 1 }, { 
+  unique: true, 
+  sparse: true,
+  name: 'unique_group_assignment'
+});
+
+// Enhanced pre-save validation
 stagiaireSchema.pre('save', async function(next) {
   try {
-    // Only generate identifier if it doesn't exist
+    // Generate identifier if it doesn't exist
     if (!this.identifier) {
-      // Make sure cycle is lowercase and has a default if undefined
       const cycle = this.cycle ? this.cycle.toLowerCase() : 'sep';
-      
-      // Make sure sessionYear has a default if undefined
       const year = this.sessionYear 
         ? this.sessionYear.toString().substring(2) 
         : new Date().getFullYear().toString().substring(2);
       
-      // Find the counter document or create it if it doesn't exist
       const counter = await Counter.findOneAndUpdate(
         { name: 'stagiaireCounter' },
         { $inc: { value: 1 } },
         { new: true, upsert: true }
       );
       
-      // Generate the identifier with session prefix, year, and counter value
       this.identifier = `${cycle}${year}-${counter.value}`;
     }
+    
+    // Enhanced CIN validation
+    if (this.cinNumber) {
+      // Clean and validate CIN
+      this.cinNumber = this.cinNumber.replace(/\s+/g, '').trim();
+      
+      // Strict CIN validation: exactly 8 digits
+      const cinRegex = /^[0-9]{8}$/;
+      if (!cinRegex.test(this.cinNumber)) {
+        return next(new Error('Le numéro CIN doit contenir exactement 8 chiffres'));
+      }
+      
+      // Check for duplicate CIN (excluding current document)
+      const existingCIN = await this.constructor.findOne({
+        cinNumber: this.cinNumber,
+        _id: { $ne: this._id }
+      });
+      
+      if (existingCIN) {
+        return next(new Error('Ce numéro CIN existe déjà dans le système'));
+      }
+    }
+    
+    // Validate and clean phone numbers
+    if (this.telephone) {
+      this.telephone = this.telephone.replace(/\s+/g, '').trim();
+      const phoneRegex = /^(\+216|0)?[2-9][0-9]{7}$/;
+      if (!phoneRegex.test(this.telephone)) {
+        return next(new Error('Format de téléphone invalide'));
+      }
+    }
+    
+    if (this.phoneNumber) {
+      this.phoneNumber = this.phoneNumber.replace(/\s+/g, '').trim();
+      const phoneRegex = /^(\+216|0)?[2-9][0-9]{7}$/;
+      if (!phoneRegex.test(this.phoneNumber)) {
+        return next(new Error('Format de numéro de téléphone invalide'));
+      }
+    }
+    
+    // Validate dates logic
+    if (this.dateArrivee && this.dateDepart && this.dateArrivee >= this.dateDepart) {
+      return next(new Error('La date de départ doit être postérieure à la date d\'arrivée'));
+    }
+    
+    if (this.trainingPeriodFrom && this.trainingPeriodTo && this.trainingPeriodFrom >= this.trainingPeriodTo) {
+      return next(new Error('La date de fin de formation doit être postérieure à la date de début'));
+    }
+    
     next();
   } catch (error) {
     next(error);

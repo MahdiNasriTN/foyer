@@ -5,7 +5,8 @@ import {
   PlusIcon,
   ViewListIcon,
   ViewGridIcon,
-  ChartPieIcon
+  ChartPieIcon,
+  DownloadIcon  // Add this
 } from '@heroicons/react/outline';
 import { usePermissions } from '../../hooks/usePermissions';
 
@@ -17,6 +18,7 @@ const PersonnelHeader = ({
   viewMode, 
   onViewModeChange,
   onAddNew,
+  onExport,  // Add this prop
   totalCount
 }) => {
   const permissions = usePermissions();
@@ -61,6 +63,15 @@ const PersonnelHeader = ({
             className={`p-2 rounded-lg ${isStatsOpen ? 'bg-blue-200 text-blue-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
             <ChartPieIcon className="h-5 w-5" />
+          </button>
+          
+          {/* Export button - always available */}
+          <button 
+            onClick={onExport}
+            className="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
+            title="Exporter"
+          >
+            <DownloadIcon className="h-5 w-5" />
           </button>
         </div>
         

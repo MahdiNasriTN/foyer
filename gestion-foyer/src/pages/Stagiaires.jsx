@@ -58,10 +58,16 @@ const Stagiaires = () => {
     room: 'all',
     gender: 'all',
     session: 'all',
-    year: 'all',  // Add year filter
+    year: 'all',
     startDate: '',
     endDate: '',
-    specificRoom: ''
+    specificRoom: '',
+    // NEW: Separate payment filters
+    hebergementPaymentStatus: '',
+    inscriptionPaymentStatus: '',
+    hebergementTrimester1: false,
+    hebergementTrimester2: false,
+    hebergementTrimester3: false
   });
   // Add a new state for debouncing
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -590,10 +596,16 @@ const Stagiaires = () => {
       room: 'all',
       gender: 'all',
       session: 'all',
-      year: 'all',  // Add year filter
+      year: 'all',
       startDate: '',
       endDate: '',
-      specificRoom: ''
+      specificRoom: '',
+      // NEW: Reset separate payment filters
+      hebergementPaymentStatus: '',
+      inscriptionPaymentStatus: '',
+      hebergementTrimester1: false,
+      hebergementTrimester2: false,
+      hebergementTrimester3: false
     };
     setFilters(resetFilters);
     loadStagiaires(resetFilters);

@@ -2,12 +2,15 @@ const express = require('express');
 const router = express.Router();
 const personnelController = require('../controllers/personnelController');
 
-// GET all personnel (must be first)
-router.get('/', personnelController.getAllPersonnel);
+// IMPORTANT: Put specific routes BEFORE parameterized routes
+// These routes must come FIRST before any /:id routes
+router.get('/export', personnelController.exportPersonnel);
+router.get('/postes', personnelController.getUniquePostes);
+router.get('/stats', personnelController.getPersonnelStats);
 
 /**
  * @swagger
- * /api/personnel:
+ * /api/v1/personnel:
  *   get:
  *     tags:
  *       - Personnel
@@ -62,7 +65,7 @@ router.get('/', personnelController.getAllPersonnel);
 
 /**
  * @swagger
- * /api/personnel/stats:
+ * /api/v1/personnel/stats:
  *   get:
  *     tags:
  *       - Personnel
@@ -105,7 +108,7 @@ router.get('/stats', personnelController.getPersonnelStats);
 
 /**
  * @swagger
- * /api/personnel/{id}:
+ * /api/v1/personnel/{id}:
  *   get:
  *     tags:
  *       - Personnel
@@ -147,7 +150,7 @@ router.get('/:id', personnelController.getPersonnelById);
 
 /**
  * @swagger
- * /api/personnel/identifier/{identifier}:
+ * /api/v1/personnel/identifier/{identifier}:
  *   get:
  *     tags:
  *       - Personnel
@@ -189,7 +192,7 @@ router.get('/identifier/:identifier', personnelController.getPersonnelByIdentifi
 
 /**
  * @swagger
- * /api/personnel:
+ * /api/v1/personnel:
  *   post:
  *     tags:
  *       - Personnel
@@ -230,7 +233,7 @@ router.post('/', personnelController.createPersonnel);
 
 /**
  * @swagger
- * /api/personnel/{id}:
+ * /api/v1/personnel/{id}:
  *   put:
  *     tags:
  *       - Personnel
@@ -280,7 +283,7 @@ router.put('/:id', personnelController.updatePersonnel);
 
 /**
  * @swagger
- * /api/personnel/{id}:
+ * /api/v1/personnel/{id}:
  *   delete:
  *     tags:
  *       - Personnel
@@ -306,5 +309,11 @@ router.put('/:id', personnelController.updatePersonnel);
  *         description: Erreur serveur
  */
 router.delete('/:id', personnelController.deletePersonnel);
+
+// Schedule routes (also parameterized, so they come after specific routes)
+router.get('/:id/schedule', personnelController.getPersonnelSchedule);
+router.put('/:id/schedule', personnelController.updatePersonnelSchedule);
+
+// Add any other specific routes here
 
 module.exports = router;

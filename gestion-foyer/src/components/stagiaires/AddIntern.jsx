@@ -119,6 +119,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     }
   }, [isEditing, initialData]);
 
+  // Update the handleChange function to include CIN validation:
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -126,6 +127,13 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
       setFormData({ ...formData, [name]: checked });
     } else if (type === 'number') {
       setFormData({ ...formData, [name]: value === '' ? '' : Number(value) });
+    } else if (name === 'cinNumber') {
+      // CIN validation: only digits, max 8 characters
+      const cleanValue = value.replace(/\D/g, ''); // Remove non-digits
+      if (cleanValue.length <= 8) {
+        setFormData({ ...formData, [name]: cleanValue });
+      }
+      // Don't update if more than 8 digits
     } else {
       setFormData({ ...formData, [name]: value });
     }
@@ -188,6 +196,20 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
     setLoading(true);
     setError(null);
 
+    // Enhanced validation
+    if (!formData.firstName || !formData.lastName || !formData.email) {
+      setError('Veuillez remplir tous les champs obligatoires.');
+      setLoading(false);
+      return;
+    }
+
+    // CIN validation
+    if (formData.cinNumber && formData.cinNumber.length !== 8) {
+      setError('Le numéro CIN doit contenir exactement 8 chiffres.');
+      setLoading(false);
+      return;
+    }
+
     try {
       let response;
 
@@ -216,63 +238,6 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
       setError(err.message || "Une erreur s'est produite lors de l'enregistrement.");
       console.error("Erreur lors de l'enregistrement:", err);
     }
-  };
-
-  const fillTestData = () => {
-    const testData = {
-      firstName: 'Mahdi',
-      lastName: 'Nasri',
-      cinNumber: '09876543',
-      cinPlace: 'Tunis',
-      cinDate: '2020-05-15',
-      dateOfBirth: '1998-03-12',
-      placeOfBirth: 'Sousse',
-      nationality: 'Tunisienne',
-      currentSituation: 'Stagiaire',
-      phoneNumber: '55123456',
-      sendingAddress: '25 Rue Ibn Khaldoun',
-      city: 'Tunis',
-      postalCode: '1002',
-      centerName: 'Institut Supérieur d\'Informatique',
-      specialization: 'Développement Web',
-      cycle: 'sep',
-      sessionYear: new Date().getFullYear().toString(),
-      email: 'mahdi.nasri@example.com',
-      sexe: 'garcon',
-      carteHebergement: 'oui', // Add to test data
-      fatherFirstName: 'Ahmed',
-      fatherLastName: 'Nasri',
-      fatherPhone: '98765432',
-      fatherJob: 'Ingénieur',
-      fatherJobPlace: 'Société ABC',
-      motherFirstName: 'Fatima',
-      motherLastName: 'Nasri',
-      motherPhone: '55667788',
-      motherJob: 'Médecin',
-      motherJobPlace: 'Hôpital X',
-      numberOfBrothers: 1,
-      numberOfSisters: 2,
-      hobby: 'Football, Lecture, Voyages',
-      trainingPeriodFrom: '2023-09-01',
-      trainingPeriodTo: '2024-06-30',
-      restauration: true,
-      foyer: true,
-      inscription: true,
-      restaurationStatus: 'payé',
-      foyerStatus: 'payé',
-      inscriptionStatus: 'dispensé',
-      restaurationSemester1: '120.00',
-      restaurationSemester2: '120.00',
-      restaurationSemester3: '120.00',
-      foyerSemester1: '120.00',
-      foyerSemester2: '120.00',
-      foyerSemester3: '120.00',
-      inscriptionSemester1: '',
-      inscriptionSemester2: '',
-      inscriptionSemester3: '',
-    };
-
-    setFormData(testData);
   };
 
   const generateYearOptions = () => {
@@ -372,20 +337,6 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
       <h2 className="text-4xl font-bold text-blue-800 mb-5 text-center">
         {isEditing ? 'Modifier un Stagiaire' : 'Ajouter un Stagiaire'}
       </h2>
-
-      {/* Bouton de test pour remplir automatiquement le formulaire */}
-      <div className="flex justify-end mb-6">
-        <button
-          type="button"
-          onClick={fillTestData}
-          className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-200 transition-colors border border-indigo-200 flex items-center shadow-sm"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          Remplir avec données test
-        </button>
-      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
@@ -686,9 +637,26 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                 name="cinNumber"
                 value={formData.cinNumber}
                 onChange={handleChange}
-                placeholder="Numéro CIN"
+                placeholder="12345678"
+                maxLength="8"
+                pattern="[0-9]{8}"
+                title="Le numéro CIN doit contenir exactement 8 chiffres"
                 className={inputClass}
               />
+              {/* Add validation feedback */}
+              {formData.cinNumber && formData.cinNumber.length < 8 && (
+                <p className="mt-1 text-sm text-amber-600">
+                  Le CIN doit contenir 8 chiffres ({formData.cinNumber.length}/8)
+                </p>
+              )}
+              {formData.cinNumber && formData.cinNumber.length === 8 && (
+                <p className="mt-1 text-sm text-green-600 flex items-center">
+                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  CIN valide
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="cinPlace" className={labelClass}>
@@ -1184,45 +1152,43 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
           </h3>
           
           <div className="space-y-6">
-            {/* Combined Restauration & Foyer - MERGED WITH SHARED VALUES */}
+            {/* Restauration & Foyer - First section */}
             <div className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center mb-4">
                 <input
                   type="checkbox"
                   id="restaurationFoyer"
-                  name="restaurationFoyer"
-                  checked={formData.restauration || formData.foyer}
+                  name="restauration"
+                  checked={formData.restauration}
                   onChange={(e) => {
-                    const isChecked = e.target.checked;
                     setFormData({
                       ...formData,
-                      restauration: isChecked,
-                      foyer: isChecked
+                      restauration: e.target.checked,
+                      foyer: e.target.checked // Keep both in sync
                     });
                   }}
                   className="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                 />
                 <label htmlFor="restaurationFoyer" className="ml-3 text-lg font-medium text-gray-700">
-                  Restauration & Foyer (Hébergement)
+                  Restauration et Foyer
                 </label>
               </div>
-              
-              {(formData.restauration || formData.foyer) && (
+
+              {formData.restauration && (
                 <div className="ml-7 space-y-4">
-                  {/* Combined Status Selection */}
                   <div className="bg-gradient-to-br from-blue-50 to-green-50 p-4 rounded-lg border border-gray-200">
                     <h4 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
                       🍽️🏠 Restauration & Foyer
                     </h4>
                     
-                    {/* Combined Status Selection */}
+                    {/* Status Selection */}
                     <div className="flex space-x-4 mb-4">
                       <label className="flex items-center">
                         <input
                           type="radio"
                           name="restaurationStatus"
                           value="payé"
-                          checked={formData.restaurationStatus === 'payé' && formData.foyerStatus === 'payé'}
+                          checked={formData.restaurationStatus === 'payé'}
                           onChange={(e) => {
                             if (e.target.checked) {
                               setFormData({
@@ -1241,7 +1207,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                           type="radio"
                           name="restaurationStatus"
                           value="dispensé"
-                          checked={formData.restaurationStatus === 'dispensé' && formData.foyerStatus === 'dispensé'}
+                          checked={formData.restaurationStatus === 'dispensé'}
                           onChange={(e) => {
                             if (e.target.checked) {
                               setFormData({
@@ -1257,8 +1223,8 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                       </label>
                     </div>
                     
-                    {/* Shared Price Inputs - Single set for both Restauration & Foyer */}
-                    {formData.restaurationStatus === 'payé' && formData.foyerStatus === 'payé' && (
+                    {/* Price Inputs - Only show when "Payé" is selected */}
+                    {formData.restaurationStatus === 'payé' && (
                       <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
@@ -1350,7 +1316,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
               )}
             </div>
 
-            {/* Inscription - Annual Payment */}
+            {/* Inscription - Second section (vertical layout) */}
             <div className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center mb-4">
                 <input
@@ -1368,74 +1334,65 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
               
               {formData.inscription && (
                 <div className="ml-7 space-y-4">
-                  {/* Status Selection */}
                   <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-4 rounded-lg border border-gray-200">
                     <h4 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
                       📋 Inscription Annuelle
                     </h4>
                     
-                    <div className="flex space-x-4 mb-4">
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="inscriptionStatus"
-                          value="payé"
-                          checked={formData.inscriptionStatus === 'payé'}
-                          onChange={handleChange}
-                          className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm font-medium text-gray-700">Payé</span>
-                      </label>
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="inscriptionStatus"
-                          value="dispensé"
-                          checked={formData.inscriptionStatus === 'dispensé'}
-                          onChange={handleChange}
-                          className="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm font-medium text-gray-700">Dispensé</span>
-                      </label>
+                    {/* Removed Status Selection - Always "Payé" for Inscription */}
+                    <div className="mb-4">
+                      <div className="flex items-center">
+                        <div className="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
+                        <span className="text-sm font-medium text-green-700">Statut: Payé</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Les frais d'inscription sont obligatoires et non dispensables.</p>
                     </div>
                     
-                    {/* Annual Price Input */}
-                    {formData.inscriptionStatus === 'payé' && (
-                      <div className="space-y-4">
-                        <div className="max-w-xs">
-                          <label htmlFor="inscriptionAnnual" className={labelClass}>
-                            Montant Annuel (DT)
-                          </label>
-                          <input
-                            type="number"
-                            id="inscriptionAnnual"
-                            name="inscriptionAnnual"
-                            value={formData.inscriptionAnnual || ''}
-                            onChange={handleChange}
-                            placeholder="0.00"
-                            min="0"
-                            step="0.01"
-                            className={inputClass}
-                          />
-                        </div>
-                        
-                        {/* Annual Total Summary */}
-                        <div className="bg-white p-3 rounded-md border border-gray-200">
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium text-purple-700">Total Inscription Annuelle:</span>
-                            <span className="font-bold text-purple-800">
-                              {(parseFloat(formData.inscriptionAnnual) || 0).toFixed(2)} DT
-                            </span>
-                          </div>
+                    {/* Annual Price Input - Always shown since it's always "Payé" */}
+                    <div className="space-y-4">
+                      <div className="max-w-sm">
+                        <label htmlFor="inscriptionAnnual" className={labelClass}>
+                          Montant Annuel (DT) *
+                        </label>
+                        <input
+                          type="number"
+                          id="inscriptionAnnual"
+                          name="inscriptionAnnual"
+                          value={formData.inscriptionAnnual || ''}
+                          onChange={(e) => {
+                            setFormData({
+                              ...formData,
+                              inscriptionAnnual: e.target.value,
+                              inscriptionStatus: 'payé' // Always set to "payé"
+                            });
+                          }}
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                          required
+                          className={inputClass}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Saisissez le montant annuel des frais d'inscription
+                        </p>
+                      </div>
+                      
+                      {/* Annual Total Summary */}
+                      <div className="bg-white p-3 rounded-md border border-gray-200">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium text-purple-700">Total Inscription Annuelle:</span>
+                          <span className="font-bold text-purple-800">
+                            {(parseFloat(formData.inscriptionAnnual) || 0).toFixed(2)} DT
+                          </span>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Payment Summary - Updated for annual inscription */}
+            {/* Payment Summary - Updated for new layout */}
             {(formData.restauration || formData.foyer || formData.inscription) && (
               <div className="mt-6 p-4 bg-gradient-to-br from-emerald-50 to-green-50 rounded-lg border border-emerald-200">
                 <h4 className="text-lg font-semibold text-emerald-800 mb-3 flex items-center">
@@ -1464,13 +1421,10 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                   {formData.inscription && (
                     <div className="flex justify-between items-center py-2 px-3 bg-white rounded-md border border-emerald-100">
                       <span className="text-sm font-medium text-gray-700">
-                        📋 Inscription (Annuelle - {formData.inscriptionStatus}):
+                        📋 Inscription (Annuelle - Payé):
                       </span>
                       <span className="font-semibold text-purple-700">
-                        {formData.inscriptionStatus === 'payé' 
-                          ? `${(parseFloat(formData.inscriptionAnnual) || 0).toFixed(2)} DT`
-                          : 'Dispensé'
-                        }
+                        {(parseFloat(formData.inscriptionAnnual) || 0).toFixed(2)} DT
                       </span>
                     </div>
                   )}
@@ -1487,8 +1441,8 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
                                     (parseFloat(formData.restaurationSemester2) || 0) + 
                                     (parseFloat(formData.restaurationSemester3) || 0);
                           }
-                          // Annual inscription
-                          if (formData.inscription && formData.inscriptionStatus === 'payé') {
+                          // Annual inscription - always "payé" now
+                          if (formData.inscription) {
                             total += (parseFloat(formData.inscriptionAnnual) || 0);
                           }
                           return `${total.toFixed(2)} DT`;

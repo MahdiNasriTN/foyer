@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { PlusIcon, XIcon, ChevronDownIcon, ClockIcon, DocumentTextIcon, BadgeCheckIcon, DownloadIcon } from '@heroicons/react/outline';
 import { fetchAllPersonnel, saveGeneralSchedule, fetchGeneralSchedule } from '../../services/scheduleService';
@@ -33,6 +32,8 @@ const GeneralSchedule = () => {
         isDayOff: false
     });
     const [newTask, setNewTask] = useState('');
+    const [isEditingShift, setIsEditingShift] = useState(false);
+    const [editingShiftData, setEditingShiftData] = useState(null);
 
     // NEW: Add filter states
     const [filters, setFilters] = useState({
@@ -132,7 +133,7 @@ const GeneralSchedule = () => {
 
     // Handle cell click to add a shift
     const handleCellClick = (personnelId, day, person) => {
-        // If there's already a shift, don't do anything
+        // If there's already a shift, don't do anything (clicking on shift will handle edit)
         if (getShiftForCell(personnelId, day)) return;
 
         setSelectedCell({ personnelId, day, person });
@@ -141,9 +142,26 @@ const GeneralSchedule = () => {
             endTime: 17,
             notes: '',
             tasks: [],
-            isDayOff: false // Reset day off option
+            isDayOff: false
         });
+        setIsEditingShift(false);
+        setEditingShiftData(null);
         setIsAddingShift(true);
+    };
+
+    // NEW: Handle clicking on existing shifts
+    const handleShiftClick = (personnelId, day, person, existingShift) => {
+        setSelectedCell({ personnelId, day, person });
+        setShiftDetails({
+            startTime: existingShift.startTime,
+            endTime: existingShift.endTime,
+            notes: existingShift.notes || '',
+            tasks: existingShift.tasks || [],
+            isDayOff: existingShift.isDayOff || false
+        });
+        setEditingShiftData(existingShift);
+        setIsEditingShift(true);
+        setIsAddingShift(true); // Reuse the same modal
     };
 
     // Add task to shift
@@ -191,8 +209,10 @@ const GeneralSchedule = () => {
             console.log('Saving schedule data:', newScheduleData);
             await saveGeneralSchedule(newScheduleData);
 
-            setSuccess('Horaire sauvegardé avec succès !');
+            setSuccess(isEditingShift ? 'Horaire modifié avec succès !' : 'Horaire sauvegardé avec succès !');
             setIsAddingShift(false);
+            setIsEditingShift(false);
+            setEditingShiftData(null);
         } catch (err) {
             console.error('Error saving schedule:', err);
             setError(err.message || 'Erreur lors de la sauvegarde de l\'horaire');
@@ -235,9 +255,45 @@ const GeneralSchedule = () => {
         }
     };
 
-    // Format time for display (24-hour format)
+    // Calculate shift duration
+    const getShiftDuration = (shift) => {
+        const startTime = shift.startTime;
+        const endTime = shift.endTime;
+        
+        if (endTime > startTime) {
+            // Same day shift
+            const hours = endTime - startTime;
+            return `${hours}h`;
+        } else if (endTime === startTime) {
+            // 24-hour shift
+            return '24h';
+        } else {
+            // Overnight shift
+            const hours = (24 - startTime) + endTime;
+            return `${hours}h (nuit)`;
+        }
+    };
+
+    // Format time for display (24-hour format) - UPDATED with overnight indicator
     const formatTime = (hour) => {
         return `${hour < 10 ? '0' + hour : hour}:00`;
+    };
+
+    // NEW: Add function to format time range with overnight indication
+    const formatTimeRange = (startTime, endTime) => {
+        const start = formatTime(startTime);
+        const end = formatTime(endTime);
+        
+        if (endTime > startTime) {
+            // Same day
+            return `${start} → ${end}`;
+        } else if (endTime === startTime) {
+            // 24-hour shift
+            return `${start} → ${end} (+1j)`;
+        } else {
+            // Overnight shift
+            return `${start} → ${end} (+1j)`;
+        }
     };
 
     // Get color scheme based on personnelId
@@ -246,21 +302,7 @@ const GeneralSchedule = () => {
         return COLORS[colorIndex] || COLORS[0];
     };
 
-    // Calculate shift duration
-    const getShiftDuration = (shift) => {
-        const hours = shift.endTime - shift.startTime;
-        return `${hours} heure${hours > 1 ? 's' : ''}`;
-    };
-
-    // Helper function to get the start date of the week for a given date
-    const getWeekStartDate = (date) => {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-        return new Date(d.setDate(diff));
-    };
-
-    // Export to PDF function
+    // Export to PDF function - UPDATED with Director signature section
     const exportToPDF = () => {
         try {
             // Create new PDF document
@@ -308,7 +350,8 @@ const GeneralSchedule = () => {
                         if (shift.isDayOff) {
                             row.push('Congé');
                         } else {
-                            let cellContent = `${formatTime(shift.startTime)}-${formatTime(shift.endTime)}`;
+                            // Use formatTimeRange for PDF export
+                            let cellContent = formatTimeRange(shift.startTime, shift.endTime);
                             if (shift.notes) {
                                 cellContent += `\n${shift.notes}`;
                             }
@@ -325,7 +368,7 @@ const GeneralSchedule = () => {
                 tableRows.push(row);
             });
 
-            // Generate table using autoTable - FIXED: Use the imported autoTable function
+            // Generate table using autoTable
             autoTable(doc, {
                 head: [tableColumns],
                 body: tableRows,
@@ -360,16 +403,63 @@ const GeneralSchedule = () => {
                 },
                 tableLineColor: [203, 213, 225], // gray-300
                 tableLineWidth: 0.1,
-                margin: { left: 15, right: 15 }
+                margin: { left: 15, right: 15 },
+                // NEW: Add didDrawPage callback to add signature section
+                didDrawPage: function (data) {
+                    // Get page dimensions
+                    const pageWidth = doc.internal.pageSize.width;
+                    const pageHeight = doc.internal.pageSize.height;
+                    
+                    // NEW: Add signature section at bottom right
+                    const signatureX = pageWidth - 80; // 80mm from right edge
+                    const signatureY = pageHeight - 40; // 40mm from bottom
+                    
+                    // Signature box
+                    doc.setDrawColor(71, 85, 105); // slate-600 color
+                    doc.setLineWidth(0.5);
+                    doc.rect(signatureX, signatureY, 65, 25); // Rectangle for signature
+                    
+                    // Signature label
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(71, 85, 105); // slate-600 color
+                    doc.text('Directeur De Centre', signatureX + 32.5, signatureY - 3, { align: 'center' });
+                    
+                    // Date and signature lines
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(107, 114, 128); // gray-500 color
+                    
+                    // Date line
+                    doc.text('Date: _______________', signatureX + 2, signatureY + 8);
+                    
+                    // Signature line
+                    doc.text('Signature:', signatureX + 2, signatureY + 18);
+                    doc.line(signatureX + 20, signatureY + 18, signatureX + 63, signatureY + 18); // Signature line
+                    
+                    // Optional: Add a small watermark/logo area
+                    doc.setFontSize(6);
+                    doc.setTextColor(156, 163, 175); // gray-400 color
+                    doc.text('Approuvé par', signatureX + 32.5, signatureY + 4, { align: 'center' });
+                }
             });
 
-            // Add footer
+            // Add footer with page numbers (update to avoid overlap with signature)
             const pageCount = doc.internal.getNumberOfPages();
             for (let i = 1; i <= pageCount; i++) {
                 doc.setPage(i);
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
-                doc.text(`Page ${i} sur ${pageCount}`, doc.internal.pageSize.width - 30, doc.internal.pageSize.height - 10);
+                doc.setTextColor(107, 114, 128); // gray-500 color
+                
+                // Position page number at bottom left to avoid signature area
+                doc.text(`Page ${i} sur ${pageCount}`, 20, doc.internal.pageSize.height - 10);
+                
+                // NEW: Add generation timestamp at bottom center
+                doc.setFontSize(8);
+                doc.setTextColor(156, 163, 175); // gray-400 color
+                const timestamp = new Date().toLocaleString('fr-FR');
+                doc.text(`Généré le ${timestamp}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
             }
 
             // Save the PDF
@@ -609,29 +699,49 @@ const GeneralSchedule = () => {
                                                     onClick={() => !shift && handleCellClick(personId, day, person)}
                                                 >
                                                     {shift ? (
-                                                        <div className={`h-full w-full flex flex-col relative group rounded-lg border overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 ${shift.isDayOff
+                                                        <div 
+                                                            className={`h-full w-full flex flex-col relative group rounded-lg border overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${shift.isDayOff
                                                                 ? 'border-red-200 bg-gradient-to-r from-red-50 to-pink-50'
                                                                 : `${colorScheme.border}`
-                                                            }`}>
+                                                            }`}
+                                                            onClick={() => handleShiftClick(personId, day, person, shift)}
+                                                        >
                                                             {shift.isDayOff ? (
                                                                 // Day Off Display
                                                                 <>
                                                                     <div className="absolute inset-0 bg-gradient-to-r from-red-50 to-pink-50 opacity-70"></div>
                                                                     <div className="relative z-10 p-3 flex flex-col items-center justify-center h-full text-center">
                                                                         <div className="text-2xl mb-2">🏖️</div>
-                                                                        <div className="font-semibold text-red-800 text-sm">Jour de congé</div>
+                                                                        <div className="font-semibold text-red-800 text-sm">Jour de repos</div>
                                                                         {shift.notes && (
                                                                             <p className="text-xs text-red-600 mt-1 line-clamp-2">{shift.notes}</p>
                                                                         )}
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                handleDeleteShift(personId, day);
-                                                                            }}
-                                                                            className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                        >
-                                                                            <XIcon className="h-4 w-4" />
-                                                                        </button>
+                                                                        
+                                                                        {/* Action buttons */}
+                                                                        <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleShiftClick(personId, day, person, shift);
+                                                                                }}
+                                                                                className="p-1 text-gray-400 hover:text-blue-500 bg-white/80 rounded transition-colors"
+                                                                                title="Modifier"
+                                                                            >
+                                                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                                </svg>
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleDeleteShift(personId, day);
+                                                                                }}
+                                                                                className="p-1 text-gray-400 hover:text-red-500 bg-white/80 rounded transition-colors"
+                                                                                title="Supprimer"
+                                                                            >
+                                                                                <XIcon className="h-3 w-3" />
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                 </>
                                                             ) : (
@@ -643,25 +753,44 @@ const GeneralSchedule = () => {
                                                                     <div className="relative z-10 p-3 pb-2 border-b border-gray-200/30 flex justify-between items-center bg-white/20">
                                                                         <div className={`font-semibold ${colorScheme.text} flex items-center`}>
                                                                             <ClockIcon className="h-4 w-4 mr-1" />
-                                                                            {formatTime(shift.startTime)} → {formatTime(shift.endTime)}
+                                                                            {/* UPDATED: Use new formatTimeRange function */}
+                                                                            {formatTimeRange(shift.startTime, shift.endTime)}
                                                                             <span className="ml-2 bg-white/70 text-xs px-2 py-0.5 rounded-full">
                                                                                 {getShiftDuration(shift)}
                                                                             </span>
                                                                         </div>
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                handleDeleteShift(personId, day);
-                                                                            }}
-                                                                            disabled={saving}
-                                                                            className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                                                                        >
-                                                                            {saving ? (
-                                                                                <span className="inline-block w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                                                            ) : (
-                                                                                <XIcon className="h-4 w-4" />
-                                                                            )}
-                                                                        </button>
+                                                                        
+                                                                        {/* Action buttons */}
+                                                                        <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleShiftClick(personId, day, person, shift);
+                                                                                }}
+                                                                                disabled={saving}
+                                                                                className="p-1 text-gray-400 hover:text-blue-500 bg-white/80 rounded transition-colors disabled:opacity-50"
+                                                                                title="Modifier"
+                                                                            >
+                                                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                                </svg>
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleDeleteShift(personId, day);
+                                                                                }}
+                                                                                disabled={saving}
+                                                                                className="p-1 text-gray-400 hover:text-red-500 bg-white/80 rounded transition-colors disabled:opacity-50"
+                                                                                title="Supprimer"
+                                                                            >
+                                                                                {saving ? (
+                                                                                    <span className="inline-block w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                                                                ) : (
+                                                                                    <XIcon className="h-3 w-3" />
+                                                                                )}
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
 
                                                                     {/* Content */}
@@ -680,6 +809,13 @@ const GeneralSchedule = () => {
                                                                                 ))}
                                                                             </ul>
                                                                         )}
+                                                                    </div>
+                                                                    
+                                                                    {/* Hover overlay with edit hint */}
+                                                                    <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                        <div className="bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1 text-xs font-medium text-gray-700 shadow-lg">
+                                                                            Cliquer pour modifier
+                                                                        </div>
                                                                     </div>
                                                                 </>
                                                             )}
@@ -728,7 +864,10 @@ const GeneralSchedule = () => {
                                 <div className="flex justify-between items-center">
                                     <div className="flex-1">
                                         <h3 className="text-xl font-bold">
-                                            {shiftDetails.isDayOff ? 'Marquer comme jour de congé' : 'Ajouter un horaire de travail'}
+                                            {isEditingShift 
+                                                ? (shiftDetails.isDayOff ? 'Modifier le jour de congé' : 'Modifier l\'horaire de travail')
+                                                : (shiftDetails.isDayOff ? 'Marquer comme jour de congé' : 'Ajouter un horaire de travail')
+                                            }
                                         </h3>
                                         <div className="mt-1 flex items-center">
                                             <span className="text-blue-200 mr-3">
@@ -737,10 +876,19 @@ const GeneralSchedule = () => {
                                             <span className="bg-white/20 text-white text-sm px-3 py-1 rounded-full">
                                                 {selectedCell.day}
                                             </span>
+                                            {isEditingShift && (
+                                                <span className="bg-yellow-500/20 text-yellow-200 text-xs px-2 py-1 rounded-full ml-2">
+                                                    Modification
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => setIsAddingShift(false)}
+                                        onClick={() => {
+                                            setIsAddingShift(false);
+                                            setIsEditingShift(false);
+                                            setEditingShiftData(null);
+                                        }}
                                         className="p-2 hover:bg-white/10 rounded-full transition-colors"
                                     >
                                         <XIcon className="h-6 w-6" />
@@ -811,11 +959,8 @@ const GeneralSchedule = () => {
                                                         value={shiftDetails.startTime}
                                                         onChange={(e) => setShiftDetails({
                                                             ...shiftDetails,
-                                                            startTime: parseInt(e.target.value),
-                                                            // Ensure end time is always after start time
-                                                            endTime: parseInt(e.target.value) >= shiftDetails.endTime
-                                                                ? parseInt(e.target.value) + 1
-                                                                : shiftDetails.endTime
+                                                            startTime: parseInt(e.target.value)
+                                                            // REMOVED: automatic endTime adjustment
                                                         })}
                                                         className="block w-full pl-4 pr-10 py-3 text-base border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg shadow-sm appearance-none bg-white"
                                                     >
@@ -839,7 +984,8 @@ const GeneralSchedule = () => {
                                                         })}
                                                         className="block w-full pl-4 pr-10 py-3 text-base border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg shadow-sm appearance-none bg-white"
                                                     >
-                                                        {HOURS.filter(hour => hour > shiftDetails.startTime).map(hour => (
+                                                        {/* UPDATED: Show all hours, not just those after start time */}
+                                                        {HOURS.map(hour => (
                                                             <option key={`end-${hour}`} value={hour}>{formatTime(hour)}</option>
                                                         ))}
                                                     </select>
@@ -850,9 +996,43 @@ const GeneralSchedule = () => {
                                             </div>
                                         </div>
 
+                                        {/* UPDATED: Enhanced duration calculation with overnight shift detection */}
                                         <div className="mt-2 flex items-center justify-between">
                                             <div className="text-sm text-gray-500">
-                                                Durée totale: <span className="font-medium text-blue-700">{shiftDetails.endTime - shiftDetails.startTime} heures</span>
+                                                {(() => {
+                                                    const startTime = shiftDetails.startTime;
+                                                    const endTime = shiftDetails.endTime;
+                                                    let duration, displayText, warningText = '';
+
+                                                    if (endTime > startTime) {
+                                                        // Same day shift
+                                                        duration = endTime - startTime;
+                                                        displayText = `${duration} heure${duration > 1 ? 's' : ''}`;
+                                                    } else if (endTime === startTime) {
+                                                        // 24-hour shift
+                                                        duration = 24;
+                                                        displayText = '24 heures';
+                                                        warningText = '(Service continu)';
+                                                    } else {
+                                                        // Overnight shift
+                                                        duration = (24 - startTime) + endTime;
+                                                        displayText = `${duration} heure${duration > 1 ? 's' : ''}`;
+                                                        warningText = '(Nuit - jour suivant)';
+                                                    }
+
+                                                    return (
+                                                        <div className="flex items-center space-x-2">
+                                                            <span>
+                                                                Durée totale: <span className="font-medium text-blue-700">{displayText}</span>
+                                                            </span>
+                                                            {warningText && (
+                                                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                                                                    {warningText}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
 
                                             <div className="flex space-x-2">
@@ -883,6 +1063,14 @@ const GeneralSchedule = () => {
                                                     className="text-xs px-2.5 py-1 bg-purple-50 text-purple-700 rounded hover:bg-purple-100"
                                                 >
                                                     Nuit
+                                                </button>
+                                                {/* NEW: Add 24-hour shift option */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShiftDetails({ ...shiftDetails, startTime: 0, endTime: 0 })}
+                                                    className="text-xs px-2.5 py-1 bg-red-50 text-red-700 rounded hover:bg-red-100"
+                                                >
+                                                    24h
                                                 </button>
                                             </div>
                                         </div>
@@ -983,10 +1171,10 @@ const GeneralSchedule = () => {
                                     {saving ? (
                                         <>
                                             <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                                            Enregistrement...
+                                            {isEditingShift ? 'Modification...' : 'Enregistrement...'}
                                         </>
                                     ) : (
-                                        'Confirmer'
+                                        isEditingShift ? 'Sauvegarder les modifications' : 'Confirmer'
                                     )}
                                 </button>
                             </div>

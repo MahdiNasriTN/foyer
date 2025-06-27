@@ -62,20 +62,28 @@ const chambreSchema = new mongoose.Schema({
   numero: {
     type: String,
     required: [true, 'Room number is required'],
-    unique: true
+    unique: true, // Already unique
+    trim: true,
+    index: true
   },
   capacite: {
     type: Number,
     required: [true, 'Room capacity is required'],
-    default: 2
+    default: 2,
+    min: [1, 'Capacity must be at least 1'],
+    max: [6, 'Capacity cannot exceed 6']
   },
   nombreLits: {
     type: Number,
-    default: 2
+    default: 2,
+    min: [1, 'Number of beds must be at least 1'],
+    max: [6, 'Number of beds cannot exceed 6']
   },
   etage: {
     type: Number,
-    required: [true, 'Floor level is required']
+    required: [true, 'Floor level is required'],
+    min: [1, 'Floor must be at least 1'],
+    max: [10, 'Floor cannot exceed 10']
   },
   type: {
     type: String,
@@ -131,6 +139,12 @@ const chambreSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
+// NEW: Add compound index for floor-number uniqueness
+chambreSchema.index({ etage: 1, numero: 1 }, { 
+  unique: true, 
+  name: 'unique_floor_room_number'
+});
+
 // Virtual property for occupation count
 chambreSchema.virtual('nombreOccupants').get(function() {
   return this.occupants ? this.occupants.length : 0;
@@ -157,6 +171,57 @@ chambreSchema.methods.hasSpace = function() {
 chambreSchema.methods.isGenderCompatible = function(stagiaireGender) {
   return this.gender === 'mixte' || this.gender === stagiaireGender;
 };
+
+// NEW: Enhanced pre-save validation
+chambreSchema.pre('save', function(next) {
+  // Validate room number format
+  if (this.numero) {
+    this.numero = this.numero.trim().toUpperCase();
+    
+    // Basic room number validation (adjust as needed)
+    const roomRegex = /^[A-Z]?[0-9]{3}[A-Z]?$/;
+    if (!roomRegex.test(this.numero)) {
+      return next(new Error('Format de numéro de chambre invalide (ex: 101, A101, 101A)'));
+    }
+  }
+  
+  // Sync beds with capacity
+  if (this.capacite && (!this.nombreLits || this.nombreLits !== this.capacite)) {
+    this.nombreLits = this.capacite;
+  }
+  
+  // Validate capacity vs occupants
+  const occupantCount = this.occupants ? this.occupants.length : 0;
+  if (occupantCount > this.capacite) {
+    return next(new Error(`Le nombre d'occupants (${occupantCount}) ne peut pas dépasser la capacité (${this.capacite})`));
+  }
+  
+  // Auto-calculate floor from room number
+  if (this.numero) {
+    const numericPart = this.numero.replace(/[^0-9]/g, '');
+    const number = parseInt(numericPart);
+    
+    if (!isNaN(number)) {
+      if (number >= 100 && number <= 199) this.etage = 1;
+      else if (number >= 200 && number <= 299) this.etage = 2;
+      else if (number >= 300 && number <= 399) this.etage = 3;
+      else if (number >= 400 && number <= 499) this.etage = 4;
+      else this.etage = 1;
+    }
+  }
+  
+  // Update status based on occupancy
+  const occupants = this.occupants ? this.occupants.length : 0;
+  if (occupants === 0) {
+    this.statut = 'disponible';
+  } else if (occupants >= this.capacite) {
+    this.statut = 'occupee';
+  } else {
+    this.statut = 'occupee';
+  }
+  
+  next();
+});
 
 // Middleware to update room status based on occupancy
 chambreSchema.pre('save', function(next) {

@@ -227,7 +227,7 @@ const Signup = ({ onSignup }) => {
           >
             <div className="pt-6 text-sm border-t border-emerald-800/50">
               <p className="text-emerald-200">
-                © 2025 Foyer Manager. Configuration initiale sécurisée.
+                © 2025 Centre Sectoriel de Formation en Cuir et Chaussures de Sakiet Ezzit. Tous droits réservés.
               </p>
             </div>
           </div>

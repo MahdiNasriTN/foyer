@@ -22,6 +22,7 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
     return date.toISOString().split('T')[0];
   };
 
+  // Update the formData initialization:
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -30,6 +31,8 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
     placeOfBirth: '',
     assignedCenter: '',
     specialization: '',
+    cycle: '', // Add cycle field
+    sessionYear: new Date().getFullYear().toString(), // Add sessionYear field
     groupNumber: '',
     trainingPeriodFrom: '',
     trainingPeriodTo: '',
@@ -37,8 +40,8 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
     phoneNumber: '',
     profilePhoto: null,
     sexe: 'garcon',
-    // Add accommodation card field
-    carteHebergement: 'non', // Default to 'non'
+    // UPDATED: Change field name from carteHebergement to carteRestauration
+    carteRestauration: 'non', // Default to 'non'
     // Payment fields for restauration only
     restauration: false,
     restaurationStatus: 'payé',
@@ -60,6 +63,11 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
         assignedCenter: initialData.assignedCenter || initialData.entreprise || '',
         sexe: initialData.sexe || 'garcon',
         profilePhoto: initialData.profilePhoto || null,
+        cycle: initialData.cycle || '', // Handle cycle
+        sessionYear: initialData.sessionYear || new Date().getFullYear().toString(), // Handle sessionYear
+        
+        // UPDATED: Handle carteRestauration instead of carteHebergement
+        carteRestauration: initialData.carteRestauration || initialData.carteHebergement || 'non',
         
         // Handle payment data if it exists
         ...(initialData.payment && {
@@ -83,9 +91,20 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
     setTimeout(() => setAnimatePhoto(true), 300);
   }, []);
 
+  // Update the handleChange function:
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    
+    if (name === 'cinNumber') {
+      // CIN validation: only digits, max 8 characters
+      const cleanValue = value.replace(/\D/g, ''); // Remove non-digits
+      if (cleanValue.length <= 8) {
+        setFormData({ ...formData, [name]: cleanValue });
+      }
+      // Don't update if more than 8 digits
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   // Gestionnaires pour la photo de profil
@@ -147,9 +166,15 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Add validation check
+    // Enhanced validation
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.cinNumber) {
       setError('Veuillez remplir tous les champs obligatoires.');
+      return;
+    }
+
+    // CIN validation
+    if (formData.cinNumber.length !== 8) {
+      setError('Le numéro CIN doit contenir exactement 8 chiffres.');
       return;
     }
 
@@ -161,7 +186,7 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
     try {
       let response;
 
-      // Prepare submission data with payment structure
+      // UPDATED: Include carteRestauration in submission data
       const submissionData = {
         ...formData,
         sexe: formData.sexe || 'garcon',
@@ -170,10 +195,13 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
         dateDepart: formData.trainingPeriodTo,
         entreprise: formData.assignedCenter,
         type: 'externe',
-        cycle: 'externe',
-        sessionYear: new Date().getFullYear().toString(),
+        cycle: formData.cycle, // Include cycle
+        sessionYear: formData.sessionYear, // Include sessionYear
         nationality: 'Tunisienne',
         currentSituation: 'Stagiaire Externe',
+        
+        // UPDATED: Include carteRestauration field
+        carteRestauration: formData.carteRestauration,
         
         // Add payment structure for restauration only
         payment: {
@@ -271,6 +299,22 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
   const sectionHeaderClass = "text-xl font-bold text-gray-800 mb-6 pb-2 border-b-2 border-indigo-200 flex items-center gap-2";
   const sectionClass = "bg-white p-6 rounded-xl shadow-md border border-gray-100 mb-8";
+
+  const generateYearOptions = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    
+    // Generate options for 5 years back and 5 years forward
+    for (let year = currentYear - 5; year <= currentYear + 5; year++) {
+      years.push(
+        <option key={year} value={year.toString()}>
+          {year}
+        </option>
+      );
+    }
+    
+    return years;
+  };
 
   return (
     <div className="bg-gradient-to-br from-white to-indigo-50/50 shadow-xl rounded-2xl p-8 max-w-full mx-auto my-4 w-[98%]">
@@ -536,10 +580,27 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
                 name="cinNumber"
                 value={formData.cinNumber}
                 onChange={handleChange}
-                placeholder="Numéro CIN"
+                placeholder="12345678"
+                maxLength="8"
+                pattern="[0-9]{8}"
+                title="Le numéro CIN doit contenir exactement 8 chiffres"
                 required
                 className={inputClass}
               />
+              {/* Add validation feedback */}
+              {formData.cinNumber && formData.cinNumber.length < 8 && (
+                <p className="mt-1 text-sm text-amber-600">
+                  Le CIN doit contenir 8 chiffres ({formData.cinNumber.length}/8)
+                </p>
+              )}
+              {formData.cinNumber && formData.cinNumber.length === 8 && (
+                <p className="mt-1 text-sm text-green-600 flex items-center">
+                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  CIN valide
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="dateOfBirth" className={labelClass}>
@@ -655,6 +716,45 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
                 className={inputClass}
               />
             </div>
+
+            {/* NEW: Add Session and Year fields - spans full width */}
+            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              <div>
+                <label htmlFor="cycle" className={labelClass}>
+                  Session
+                </label>
+                <select
+                  id="cycle"
+                  name="cycle"
+                  value={formData.cycle}
+                  onChange={handleChange}
+                  className={inputClass}
+                  required
+                >
+                  <option value="">Sélectionnez une session</option>
+                  <option value="sep">Septembre</option>
+                  <option value="nov">Novembre</option>
+                  <option value="fev">Février</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="sessionYear" className={labelClass}>
+                  Année de session
+                </label>
+                <select
+                  id="sessionYear"
+                  name="sessionYear"
+                  value={formData.sessionYear}
+                  onChange={handleChange}
+                  className={inputClass}
+                  required
+                >
+                  <option value="">Sélectionnez une année</option>
+                  {generateYearOptions()}
+                </select>
+              </div>
+            </div>
+
             <div>
               <label htmlFor="trainingPeriodFrom" className={labelClass}>
                 Début de formation ou stage
@@ -689,53 +789,53 @@ const AddExternIntern = ({ onCancel, onSave, initialData = null, isEditing = fal
         {/* Add a new section for Carte d'hébergement before payment section */}
         <div className={`${sectionClass} bg-gradient-to-br from-white to-orange-50/30`}>
           <h3 className={sectionHeaderClass}>
-            <span className="bg-orange-100 text-orange-700 p-1.5 rounded-lg">🏠</span>
-            Carte d'Hébergement
+              <span className="bg-orange-100 text-orange-700 p-1.5 rounded-lg">🍽️</span>
+              Carte de Restauration
           </h3>
           
           <div className="bg-gradient-to-br from-orange-50 to-yellow-50 p-4 rounded-lg border border-orange-200">
-            <div className="flex items-center space-x-6">
-              <span className="text-lg font-medium text-gray-700">Le stagiaire externe a-t-il une carte d'hébergement ?</span>
-              <div className="flex space-x-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="carteHebergement"
-                    value="oui"
-                    checked={formData.carteHebergement === 'oui'}
-                    onChange={(e) => {
-                      setFormData({
-                        ...formData,
-                        carteHebergement: e.target.value
-                      });
-                    }}
-                    className="h-4 w-4 text-orange-600 border-gray-300 focus:ring-orange-500"
-                  />
-                  <span className="ml-2 text-sm font-medium text-gray-700">✅ Oui</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="carteHebergement"
-                    value="non"
-                    checked={formData.carteHebergement === 'non'}
-                    onChange={(e) => {
-                      setFormData({
-                        ...formData,
-                        carteHebergement: e.target.value
-                      });
-                    }}
-                    className="h-4 w-4 text-orange-600 border-gray-300 focus:ring-orange-500"
-                  />
-                  <span className="ml-2 text-sm font-medium text-gray-700">❌ Non</span>
-                </label>
+              <div className="flex items-center space-x-6">
+                  <span className="text-lg font-medium text-gray-700">Le stagiaire externe a-t-il une carte de restauration ?</span>
+                  <div className="flex space-x-4">
+                    <label className="flex items-center">
+                      <input
+                          type="radio"
+                          name="carteRestauration"
+                          value="oui"
+                          checked={formData.carteRestauration === 'oui'}
+                          onChange={(e) => {
+                              setFormData({
+                                  ...formData,
+                                  carteRestauration: e.target.value
+                              });
+                          }}
+                          className="h-4 w-4 text-orange-600 border-gray-300 focus:ring-orange-500"
+                      />
+                      <span className="ml-2 text-sm font-medium text-gray-700">✅ Oui</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                          type="radio"
+                          name="carteRestauration"
+                          value="non"
+                          checked={formData.carteRestauration === 'non'}
+                          onChange={(e) => {
+                              setFormData({
+                                  ...formData,
+                                  carteRestauration: e.target.value
+                              });
+                          }}
+                          className="h-4 w-4 text-orange-600 border-gray-300 focus:ring-orange-500"
+                      />
+                      <span className="ml-2 text-sm font-medium text-gray-700">❌ Non</span>
+                    </label>
+                  </div>
               </div>
-            </div>
-            
-            {/* Optional: Add some context/explanation */}
-            <div className="mt-3 text-sm text-gray-600">
-              <p>ℹ️ La carte d'hébergement permet l'accès aux services de restauration et d'hébergement.</p>
-            </div>
+              
+              {/* UPDATED: Change explanation text */}
+              <div className="mt-3 text-sm text-gray-600">
+                  <p>ℹ️ La carte de restauration permet l'accès aux services de restauration du centre.</p>
+              </div>
           </div>
         </div>
 

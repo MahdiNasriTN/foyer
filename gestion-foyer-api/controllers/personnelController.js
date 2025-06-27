@@ -4,9 +4,15 @@ const mongoose = require('mongoose'); // Add this import at the top
 // Obtenir tous les membres du personnel avec filtrage
 exports.getAllPersonnel = async (req, res) => {
   try {
+    console.log('Received query parameters:', req.query); // Debug log
+    
     const { 
       search = '', 
-      status = 'all', 
+      status = 'all',
+      department = 'all',
+      role = 'all',
+      startDate = '',
+      endDate = '',
       sortBy = 'createdAt', 
       sortOrder = 'desc',
       page = 1,
@@ -17,25 +23,62 @@ exports.getAllPersonnel = async (req, res) => {
     let query = {};
 
     // Search functionality
-    if (search) {
-      const searchRegex = new RegExp(search, 'i');
-      query = {
-        $or: [
-          { firstName: searchRegex },
-          { lastName: searchRegex },
-          { nom: searchRegex },
-          { email: searchRegex },
-          { identifier: searchRegex },
-          { poste: searchRegex },
-          { departement: searchRegex }
-        ]
-      };
+    if (search && search.trim() !== '') {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      query.$or = [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { nom: searchRegex },
+        { email: searchRegex },
+        { identifier: searchRegex },
+        { poste: searchRegex },
+        { departement: searchRegex }
+      ];
     }
 
     // Status filter
     if (status !== 'all') {
-      query.statut = status;
+      query.statut = status === 'active' ? 'actif' : 'inactif';
     }
+
+    // Department filter
+    if (department !== 'all') {
+      query.departement = department;
+    }
+
+    // Role filter (assuming you have a role field, otherwise map to poste)
+    if (role !== 'all') {
+      // If you don't have a role field, you can map roles to specific postes
+      const roleMapping = {
+        'admin': ['Administrator', 'Administrateur', 'Directeur'],
+        'manager': ['Manager', 'Gestionnaire', 'Superviseur', 'Chef de service'],
+        'employee': ['Employé', 'Agent', 'Technicien', 'Assistant']
+      };
+      
+      if (roleMapping[role]) {
+        query.poste = { $in: roleMapping[role] };
+      } else {
+        query.poste = role; // Direct mapping if not in predefined roles
+      }
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      query.dateEmbauche = {};
+      
+      if (startDate) {
+        query.dateEmbauche.$gte = new Date(startDate);
+      }
+      
+      if (endDate) {
+        // Add one day to include the end date
+        const endDateObj = new Date(endDate);
+        endDateObj.setDate(endDateObj.getDate() + 1);
+        query.dateEmbauche.$lt = endDateObj;
+      }
+    }
+
+    console.log('MongoDB query:', JSON.stringify(query, null, 2)); // Debug log
 
     // Sorting
     const sortOptions = {};
@@ -50,11 +93,14 @@ exports.getAllPersonnel = async (req, res) => {
     const total = await Personnel.countDocuments(query);
     const totalPages = Math.ceil(total / limit);
 
+    console.log(`Found ${personnel.length} personnel out of ${total} total`); // Debug log
+
     res.status(200).json({
       status: 'success',
       results: personnel.length,
       totalPages,
       currentPage: parseInt(page),
+      totalRecords: total,
       data: {
         personnel
       }
@@ -497,6 +543,146 @@ exports.deletePersonnel = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Erreur lors de la suppression de l\'employé'
+    });
+  }
+};
+
+// Update the exportPersonnel function
+exports.exportPersonnel = async (req, res) => {
+  try {
+    console.log('Export request received with query:', req.query);
+    
+    const { 
+      search = '', 
+      status = 'all', 
+      department = 'all',
+      poste = 'all',
+      format = 'csv' // csv, excel, pdf
+    } = req.query;
+
+    // Build query - same logic as getAllPersonnel
+    let query = {};
+
+    // Search functionality
+    if (search && search.trim() !== '') {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      query = {
+        $or: [
+          { firstName: searchRegex },
+          { lastName: searchRegex },
+          { nom: searchRegex },
+          { email: searchRegex },
+          { identifier: searchRegex },
+          { poste: searchRegex },
+          { departement: searchRegex }
+        ]
+      };
+    }
+
+    // Status filter
+    if (status !== 'all') {
+      query.statut = status;
+    }
+
+    // Department filter
+    if (department !== 'all') {
+      query.departement = department;
+    }
+
+    // Poste filter
+    if (poste !== 'all') {
+      query.poste = poste;
+    }
+
+    console.log('MongoDB query:', JSON.stringify(query, null, 2));
+
+    // Get all personnel matching filters
+    const personnel = await Personnel.find(query).sort({ poste: 1, nom: 1 });
+
+    console.log(`Found ${personnel.length} personnel records`);
+
+    // Group by poste
+    const personnelByPoste = personnel.reduce((acc, emp) => {
+      const posteKey = emp.poste || 'Non spécifié';
+      if (!acc[posteKey]) {
+        acc[posteKey] = [];
+      }
+      acc[posteKey].push({
+        identifier: emp.identifier || '',
+        nom: emp.nom || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+        email: emp.email || '',
+        telephone: emp.telephone || '',
+        poste: emp.poste || '',
+        departement: emp.departement || '',
+        dateEmbauche: emp.dateEmbauche ? new Date(emp.dateEmbauche).toLocaleDateString('fr-FR') : '',
+        statut: emp.statut || '',
+        adresse: emp.adresse || ''
+      });
+      return acc;
+    }, {});
+
+    if (format === 'csv') {
+      // Generate CSV
+      let csvContent = 'Poste,Identifiant,Nom,Email,Téléphone,Département,Date d\'embauche,Statut,Adresse\n';
+      
+      Object.keys(personnelByPoste).sort().forEach(poste => {
+        personnelByPoste[poste].forEach(emp => {
+          const csvRow = [
+            poste,
+            emp.identifier,
+            emp.nom,
+            emp.email,
+            emp.telephone,
+            emp.departement,
+            emp.dateEmbauche,
+            emp.statut,
+            emp.adresse
+          ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
+          
+          csvContent += csvRow + '\n';
+        });
+      });
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename=personnel_par_poste_${new Date().toISOString().split('T')[0]}.csv`);
+      return res.send('\uFEFF' + csvContent); // Add BOM for proper UTF-8 encoding
+    }
+
+    // Return JSON format for other formats or frontend processing
+    res.status(200).json({
+      status: 'success',
+      data: {
+        personnelByPoste,
+        totalCount: personnel.length,
+        exportDate: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error exporting personnel:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Erreur lors de l\'export du personnel',
+      error: error.message
+    });
+  }
+};
+
+// Add function to get unique postes for filter
+exports.getUniquePostes = async (req, res) => {
+  try {
+    const postes = await Personnel.distinct('poste');
+    res.status(200).json({
+      status: 'success',
+      data: {
+        postes: postes.filter(p => p && p.trim() !== '').sort()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting unique postes:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Erreur lors de la récupération des postes'
     });
   }
 };

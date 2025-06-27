@@ -81,7 +81,6 @@ export const logout = async () => {
 // Stagiaires endpoints
 export const fetchStagiaires = async (filters = {}) => {
   try {
-    // Construction des paramètres de requête à partir des filtres
     let queryParams = new URLSearchParams();
     
     // Add search parameter if provided
@@ -89,7 +88,7 @@ export const fetchStagiaires = async (filters = {}) => {
       queryParams.append('search', filters.search);
     }
     
-    // Traitement des différents filtres
+    // Existing filters
     if (filters.status && filters.status !== 'all') {
       queryParams.append('status', filters.status);
     }
@@ -110,7 +109,6 @@ export const fetchStagiaires = async (filters = {}) => {
       queryParams.append('session', filters.session);
     }
     
-    // Add year filter
     if (filters.year && filters.year !== 'all') {
       queryParams.append('year', filters.year);
     }
@@ -123,15 +121,27 @@ export const fetchStagiaires = async (filters = {}) => {
       queryParams.append('endDate', filters.endDate);
     }
     
-    // ADD THIS: Payment status filter
+    // NEW: Separate payment filters
+    if (filters.hebergementPaymentStatus && filters.hebergementPaymentStatus !== '') {
+      queryParams.append('hebergementPaymentStatus', filters.hebergementPaymentStatus);
+      
+      // Add trimester filters for hébergement
+      if (filters.hebergementTrimester1) queryParams.append('hebergementTrimester1', 'true');
+      if (filters.hebergementTrimester2) queryParams.append('hebergementTrimester2', 'true');
+      if (filters.hebergementTrimester3) queryParams.append('hebergementTrimester3', 'true');
+    }
+    
+    if (filters.inscriptionPaymentStatus && filters.inscriptionPaymentStatus !== '') {
+      queryParams.append('inscriptionPaymentStatus', filters.inscriptionPaymentStatus);
+    }
+    
+    // Legacy support for old paymentStatus filter
     if (filters.paymentStatus && filters.paymentStatus !== '') {
       queryParams.append('paymentStatus', filters.paymentStatus);
     }
     
-    // Construction de l'URL avec les paramètres de requête
     const queryString = queryParams.toString();
     const url = `/api/v1/stagiaires${queryString ? `?${queryString}` : ''}`;
-    
     
     const response = await API.get(url);
     return response;

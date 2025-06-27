@@ -21,16 +21,25 @@ axiosInstance.interceptors.request.use(
 );
 
 // Récupérer tous les membres du personnel
-// Update the getAllPersonnel function:
-
+// Update the getAllPersonnel function
 export const getAllPersonnel = async (filters = {}) => {
   try {
     const params = new URLSearchParams();
     console.log('Service received filters:', filters);
     
+    // Map frontend filters to backend parameters
+    const filterMapping = {
+      search: filters.search,
+      status: filters.status, // 'all', 'active', 'inactive'
+      department: filters.department, // 'all' or department name
+      role: filters.role, // 'all', 'admin', 'manager', 'employee'
+      startDate: filters.startDate,
+      endDate: filters.endDate
+    };
+    
     // Only add filters that have actual values
-    Object.keys(filters).forEach(key => {
-      const value = filters[key];
+    Object.keys(filterMapping).forEach(key => {
+      const value = filterMapping[key];
       if (value !== undefined && value !== null && value !== '' && value !== 'all') {
         params.append(key, value);
         console.log(`Adding filter ${key}:`, value);
@@ -49,6 +58,7 @@ export const getAllPersonnel = async (filters = {}) => {
       totalPages: response.data.totalPages || 1,
       currentPage: response.data.currentPage || 1,
       results: response.data.results || 0,
+      totalRecords: response.data.totalRecords || 0,
       status: response.data.status
     };
   } catch (error) {
@@ -128,5 +138,42 @@ export const updatePersonnelSchedule = async (personnelId, scheduleData) => {
   } catch (error) {
     console.error('Erreur lors de la mise à jour du planning du personnel :', error);
     throw error;
+  }
+};
+
+// Add these new functions at the end of the file
+
+// Export personnel data
+export const exportPersonnel = async (filters = {}, format = 'csv') => {
+  try {
+    const params = new URLSearchParams();
+    
+    // Add filters
+    Object.keys(filters).forEach(key => {
+      const value = filters[key];
+      if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+        params.append(key, value);
+      }
+    });
+    
+    params.append('format', format);
+    
+    const response = await axiosInstance.get(`/api/v1/personnel/export?${params.toString()}`, {
+      responseType: format === 'csv' ? 'blob' : 'json'
+    });
+    
+    return response;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// Get unique postes for filtering
+export const getUniquePostes = async () => {
+  try {
+    const response = await axiosInstance.get('/api/v1/personnel/postes');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
   }
 };

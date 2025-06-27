@@ -6,7 +6,8 @@ import {
   OfficeBuildingIcon,
   UserIcon,
   ClockIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  SearchIcon
 } from '@heroicons/react/outline';
 
 const PersonnelFilters = ({ filters, onApplyFilters, onResetFilters }) => {
@@ -33,18 +34,39 @@ const PersonnelFilters = ({ filters, onApplyFilters, onResetFilters }) => {
 
   // Appliquer les filtres
   const applyFilters = () => {
-    // Create a clean filter object, ensuring status is properly included
+    // Create a clean filter object
     const filtersToApply = {
       status: localFilters.status,
       department: localFilters.department,
       role: localFilters.role,
-      dateRange: localFilters.dateRange,
       startDate: localFilters.startDate,
-      endDate: localFilters.endDate
+      endDate: localFilters.endDate,
+      search: localFilters.search || '' // Include search from local filters
     };
     
+    // Handle date range presets
+    if (localFilters.dateRange !== 'all' && localFilters.dateRange !== 'custom') {
+      const now = new Date();
+      let startDate = new Date();
+      
+      switch (localFilters.dateRange) {
+        case 'lastMonth':
+          startDate.setMonth(now.getMonth() - 1);
+          filtersToApply.startDate = startDate.toISOString().split('T')[0];
+          filtersToApply.endDate = now.toISOString().split('T')[0];
+          break;
+        case 'lastYear':
+          startDate.setFullYear(now.getFullYear() - 1);
+          filtersToApply.startDate = startDate.toISOString().split('T')[0];
+          filtersToApply.endDate = now.toISOString().split('T')[0];
+          break;
+        default:
+          break;
+      }
+    }
+    
     // Debug log to check what's being sent
-    console.log('Applying filters:', filtersToApply);
+    console.log('PersonnelFilters - Applying filters:', filtersToApply);
     
     onApplyFilters(filtersToApply);
   };
@@ -103,7 +125,22 @@ const PersonnelFilters = ({ filters, onApplyFilters, onResetFilters }) => {
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        {/* Champ de recherche */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 uppercase mb-1 flex items-center">
+            <SearchIcon className="h-3.5 w-3.5 mr-1" />
+            Recherche
+          </label>
+          <input
+            type="text"
+            placeholder="Nom, email, poste..."
+            value={localFilters.search || ''}
+            onChange={(e) => handleFilterChange('search', e.target.value)}
+            className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+
         {/* Filtre par statut */}
         <div>
           <label className="block text-xs font-medium text-gray-500 uppercase mb-1 flex items-center">

@@ -11,7 +11,7 @@ const Schedule = () => {
         <div className="relative max-w-full mx-auto">
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Gestion du Planning</h1>
           <p className="text-blue-200 text-sm">
-            Planifiez les activités, visualisez les disponibilités et gérez l'emploi du temps du foyer
+            Planifiez les activités, visualisez les disponibilités et gérez l'emploi du temps du personnel
           </p>
         </div>
       </div>

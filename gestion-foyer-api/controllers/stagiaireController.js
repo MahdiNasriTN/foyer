@@ -2,6 +2,31 @@ const { Stagiaire, Chambre } = require('../models');
 const Excel = require('exceljs'); // You'll need to install this
 const mongoose = require('mongoose');
 
+// Add this helper function at the top of your stagiaire controller
+const handleUniqueError = (error) => {
+  if (error.code === 11000) {
+    const field = Object.keys(error.keyPattern)[0];
+    const fieldMappings = {
+      'email': 'adresse email',
+      'telephone': 'numéro de téléphone',
+      'phoneNumber': 'numéro de téléphone',
+      'cinNumber': 'numéro CIN',
+      'identifier': 'identifiant'
+    };
+    
+    const fieldName = fieldMappings[field] || field;
+    return `Un stagiaire avec ce ${fieldName} existe déjà`;
+  }
+  
+  // Handle validation errors
+  if (error.name === 'ValidationError') {
+    const firstError = Object.values(error.errors)[0];
+    return firstError.message;
+  }
+  
+  return error.message;
+};
+
 // Add this helper function at the top of your file, right after the imports
 const buildStagiaireQuery = (queryParams) => {
   let query = {};
@@ -419,134 +444,112 @@ exports.getAllStagiaires = async (req, res) => {
         : dateQuery;
     }
 
-    // Payment Status Filtering with Trimester Support - ENHANCED VERSION
-    if (req.query.paymentStatus && req.query.paymentStatus !== '') {
+    // Payment Status Filtering with Trimester Support - FIXED VERSION
+    if (req.query.hebergementPaymentStatus && req.query.hebergementPaymentStatus !== '') {
       let paymentQuery = {};
       
-      console.log('Payment status filter requested:', req.query.paymentStatus);
-      console.log('Trimester filters:', {
-        trimester1: req.query.trimester1,
-        trimester2: req.query.trimester2,
-        trimester3: req.query.trimester3
+      console.log('Hébergement payment status filter requested:', req.query.hebergementPaymentStatus);
+      console.log('Hébergement Trimester filters:', {
+        trimester1: req.query.hebergementTrimester1,
+        trimester2: req.query.hebergementTrimester2,
+        trimester3: req.query.hebergementTrimester3
       });
       
-      // Get selected trimesters
+      // Get selected trimesters for hébergement
       const selectedTrimesters = [];
-      if (req.query.trimester1 === 'true') selectedTrimesters.push('semester1Price');
-      if (req.query.trimester2 === 'true') selectedTrimesters.push('semester2Price');
-      if (req.query.trimester3 === 'true') selectedTrimesters.push('semester3Price');
+      if (req.query.hebergementTrimester1 === 'true') selectedTrimesters.push('semester1Price');
+      if (req.query.hebergementTrimester2 === 'true') selectedTrimesters.push('semester2Price');
+      if (req.query.hebergementTrimester3 === 'true') selectedTrimesters.push('semester3Price');
       
-      if (req.query.paymentStatus === 'paid') {
+      if (req.query.hebergementPaymentStatus === 'paid') {
         if (selectedTrimesters.length > 0) {
-          // Filter by specific trimesters that are paid (price > 0)
-          const trimesterConditions = [];
+          // Check that ALL selected trimesters have been paid (price > 0)
+          const trimesterConditions = selectedTrimesters.map(trimester => ({
+            [`payment.restaurationFoyer.${trimester}`]: { $gt: 0 }
+          }));
           
-          selectedTrimesters.forEach(semester => {
-            trimesterConditions.push({
-              'payment.restaurationFoyer.enabled': true,
-              'payment.restaurationFoyer.status': 'payé',
-              [`payment.restaurationFoyer.${semester}`]: { $gt: 0 }
-            });
-            trimesterConditions.push({
-              'payment.inscription.enabled': true,
-              'payment.inscription.status': 'payé',
-              'payment.inscription.annualPrice': { $gt: 0 }
-            });
-          });
-          
-          paymentQuery = { $or: trimesterConditions };
+          paymentQuery = {
+            $and: [
+              { 'payment.restaurationFoyer.enabled': true },
+              { 'payment.restaurationFoyer.status': 'payé' },
+              { $and: trimesterConditions }
+            ]
+          };
         } else {
-          // No trimester specified, show all paid
+          // If no specific trimester selected, just check general payment status
+          paymentQuery = {
+            'payment.restaurationFoyer.enabled': true,
+            'payment.restaurationFoyer.status': 'payé'
+          };
+        }
+      } else if (req.query.hebergementPaymentStatus === 'unpaid') {
+        if (selectedTrimesters.length > 0) {
+          // Check that AT LEAST ONE selected trimester is unpaid (price = 0)
+          const trimesterConditions = selectedTrimesters.map(trimester => ({
+            [`payment.restaurationFoyer.${trimester}`]: { $eq: 0 }
+          }));
+          
           paymentQuery = {
             $or: [
-              {
-                'payment.restaurationFoyer.enabled': true,
-                'payment.restaurationFoyer.status': 'payé'
-              },
-              {
-                'payment.inscription.enabled': true,
-                'payment.inscription.status': 'payé'
-              }
+              { 'payment.restaurationFoyer.enabled': false },
+              { 'payment.restaurationFoyer.status': 'non payé' },
+              { $or: trimesterConditions }
+            ]
+          };
+        } else {
+          // If no specific trimester selected, check general unpaid status
+          paymentQuery = {
+            $or: [
+              { 'payment.restaurationFoyer.enabled': false },
+              { 'payment.restaurationFoyer.status': 'non payé' }
             ]
           };
         }
-      } else if (req.query.paymentStatus === 'unpaid') {
-        if (selectedTrimesters.length > 0) {
-          // Filter by specific trimesters that are unpaid
-          const trimesterConditions = [];
-          
-          selectedTrimesters.forEach(semester => {
-            trimesterConditions.push({
-              'payment.restaurationFoyer.enabled': true,
-              'payment.restaurationFoyer.status': 'non payé',
-              [`payment.restaurationFoyer.${semester}`]: { $gt: 0 }
-            });
-            trimesterConditions.push({
-              'payment.inscription.enabled': true,
-              'payment.inscription.status': 'non payé',
-              'payment.inscription.annualPrice': { $gt: 0 }
-            });
-          });
-          
-          paymentQuery = { $or: trimesterConditions };
-        } else {
-          // No trimester specified, show all unpaid
-          paymentQuery = {
-            $or: [
-              {
-                'payment.restaurationFoyer.enabled': true,
-                'payment.restaurationFoyer.status': 'non payé'
-              },
-              {
-                'payment.inscription.enabled': true,
-                'payment.inscription.status': 'non payé'
-              }
-            ]
-          };
-        }
-      } else if (req.query.paymentStatus === 'exempt') {
-        if (selectedTrimesters.length > 0) {
-          // Filter by specific trimesters that are exempt
-          const trimesterConditions = [];
-          
-          selectedTrimesters.forEach(semester => {
-            trimesterConditions.push({
-              'payment.restaurationFoyer.enabled': true,
-              'payment.restaurationFoyer.status': 'dispensé',
-              [`payment.restaurationFoyer.${semester}`]: { $gte: 0 }
-            });
-            trimesterConditions.push({
-              'payment.inscription.enabled': true,
-              'payment.inscription.status': 'dispensé',
-              'payment.inscription.annualPrice': { $gte: 0 }
-            });
-          });
-          
-          paymentQuery = { $or: trimesterConditions };
-        } else {
-          // No trimester specified, show all exempt
-          paymentQuery = {
-            $or: [
-              {
-                'payment.restaurationFoyer.enabled': true,
-                'payment.restaurationFoyer.status': 'dispensé'
-              },
-              {
-                'payment.inscription.enabled': true,
-                'payment.inscription.status': 'dispensé'
-              }
-            ]
-          };
-        }
+      } else if (req.query.hebergementPaymentStatus === 'exempt') {
+        paymentQuery = {
+          'payment.restaurationFoyer.status': 'dispensé'
+        };
       }
       
-      console.log('Payment query with trimester filter:', JSON.stringify(paymentQuery, null, 2));
+      console.log('Hébergement payment query:', JSON.stringify(paymentQuery, null, 2));
       
       // Combine with existing query
       if (Object.keys(paymentQuery).length > 0) {
         query = Object.keys(query).length > 0
           ? { $and: [query, paymentQuery] }
           : paymentQuery;
+      }
+    }
+
+    // Add similar logic for inscription payment filtering
+    if (req.query.inscriptionPaymentStatus && req.query.inscriptionPaymentStatus !== '') {
+      let inscriptionQuery = {};
+      
+      console.log('Inscription payment status filter requested:', req.query.inscriptionPaymentStatus);
+      
+      if (req.query.inscriptionPaymentStatus === 'paid') {
+        inscriptionQuery = {
+          'payment.inscription.enabled': true,
+          'payment.inscription.status': 'payé',
+          'payment.inscription.annualPrice': { $gt: 0 }
+        };
+      } else if (req.query.inscriptionPaymentStatus === 'unpaid') {
+        inscriptionQuery = {
+          $or: [
+            { 'payment.inscription.enabled': false },
+            { 'payment.inscription.status': 'non payé' },
+            { 'payment.inscription.annualPrice': { $eq: 0 } }
+          ]
+        };
+      }
+      
+      console.log('Inscription payment query:', JSON.stringify(inscriptionQuery, null, 2));
+      
+      // Combine with existing query
+      if (Object.keys(inscriptionQuery).length > 0) {
+        query = Object.keys(query).length > 0
+          ? { $and: [query, inscriptionQuery] }
+          : inscriptionQuery;
       }
     }
 
@@ -757,7 +760,7 @@ exports.createStagiaire = async (req, res) => {
     console.error('Error creating stagiaire:', error);
     res.status(400).json({
       status: 'error',
-      message: error.message
+      message: handleUniqueError(error)
     });
   }
 };
@@ -765,23 +768,24 @@ exports.createStagiaire = async (req, res) => {
 // Ajouter ces deux fonctions spécialisées
 exports.createInternStagiaire = async (req, res) => {
   try {
-    // Set default values and process payment data
+    // Validate CIN format before saving
+    if (req.body.cinNumber) {
+      const cleanCIN = req.body.cinNumber.replace(/\s+/g, '').trim();
+      if (!/^[0-9]{8}$/.test(cleanCIN)) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Le numéro CIN doit contenir exactement 8 chiffres'
+        });
+      }
+      req.body.cinNumber = cleanCIN;
+    }
+
     const stagiaireData = {
       ...req.body,
       type: 'interne',
-      carteHebergement: req.body.carteHebergement || 'non' // Ensure default value
+      carteHebergement: req.body.carteHebergement || 'non'
     };
     
-    // Vérifier si un stagiaire avec cet email existe déjà
-    const existingStagiaire = await Stagiaire.findOne({ email: stagiaireData.email });
-    if (existingStagiaire) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Un stagiaire avec cet email existe déjà'
-      });
-    }
-    
-    // Créer le nouveau stagiaire
     const stagiaire = await Stagiaire.create(stagiaireData);
 
     res.status(201).json({
@@ -792,51 +796,33 @@ exports.createInternStagiaire = async (req, res) => {
     console.error('Erreur lors de la création du stagiaire interne:', error);
     res.status(400).json({
       status: 'error',
-      message: error.message
+      message: handleUniqueError(error)
     });
   }
 };
 
 exports.createExternStagiaire = async (req, res) => {
   try {
+    // Validate CIN format before saving
+    if (req.body.cinNumber) {
+      const cleanCIN = req.body.cinNumber.replace(/\s+/g, '').trim();
+      if (!/^[0-9]{8}$/.test(cleanCIN)) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Le numéro CIN doit contenir exactement 8 chiffres'
+        });
+      }
+      req.body.cinNumber = cleanCIN;
+    }
+
     const stagiaireData = {
       ...req.body,
       type: 'externe',
       cycle: req.body.cycle || 'externe',
       sessionYear: req.body.sessionYear || new Date().getFullYear().toString(),
-      carteHebergement: req.body.carteHebergement || 'non' // Ensure default value
+      carteRestauration: req.body.carteRestauration || 'non'
     };
-
-    // Process payment data for external stagiaires (restauration only)
-    if (stagiaireData.restauration !== undefined) {
-      stagiaireData.payment = {
-        restauration: {
-          enabled: stagiaireData.restauration || false,
-          status: stagiaireData.restaurationStatus || 'payé',
-          semester1Price: parseFloat(stagiaireData.restaurationSemester1) || 0,
-          semester2Price: parseFloat(stagiaireData.restaurationSemester2) || 0,
-          semester3Price: parseFloat(stagiaireData.restaurationSemester3) || 0
-        }
-      };
-      
-      // Remove flat payment fields
-      delete stagiaireData.restauration;
-      delete stagiaireData.restaurationStatus;
-      delete stagiaireData.restaurationSemester1;
-      delete stagiaireData.restaurationSemester2;
-      delete stagiaireData.restaurationSemester3;
-    }
     
-    // Vérifier si un stagiaire avec cet email existe déjà
-    const existingStagiaire = await Stagiaire.findOne({ email: stagiaireData.email });
-    if (existingStagiaire) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Un stagiaire avec cet email existe déjà'
-      });
-    }
-    
-    // Créer le nouveau stagiaire
     const stagiaire = await Stagiaire.create(stagiaireData);
 
     res.status(201).json({
@@ -847,7 +833,7 @@ exports.createExternStagiaire = async (req, res) => {
     console.error('Erreur lors de la création du stagiaire externe:', error);
     res.status(400).json({
       status: 'error',
-      message: error.message
+      message: handleUniqueError(error)
     });
   }
 };
@@ -858,6 +844,18 @@ exports.updateStagiaire = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
     
+    // Validate CIN format before updating
+    if (updateData.cinNumber) {
+      const cleanCIN = updateData.cinNumber.replace(/\s+/g, '').trim();
+      if (!/^[0-9]{8}$/.test(cleanCIN)) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Le numéro CIN doit contenir exactement 8 chiffres'
+        });
+      }
+      updateData.cinNumber = cleanCIN;
+    }
+
     // Get the existing stagiaire to check type
     const existingStagiaire = await Stagiaire.findById(id);
     if (!existingStagiaire) {
@@ -939,7 +937,7 @@ exports.updateStagiaire = async (req, res) => {
     console.error('Error updating stagiaire:', error);
     res.status(400).json({
       status: 'error',
-      message: error.message
+      message: handleUniqueError(error)
     });
   }
 };

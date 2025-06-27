@@ -6,6 +6,8 @@ import PersonnelModal from '../components/personnel/PersonnelModal';
 import PersonnelStats from '../components/personnel/PersonnelStats';
 import PersonnelFilters from '../components/personnel/PersonnelFilters';
 import PersonnelSchedule from '../components/personnel/PersonnelSchedule';
+// Import PersonnelExport
+import PersonnelExport from '../components/personnel/PersonnelExport';
 
 // Import des services API
 import { 
@@ -62,6 +64,9 @@ const Personnel = () => {
   });
   const [showSchedule, setShowSchedule] = useState(false);
   const [selectedEmployeeForSchedule, setSelectedEmployeeForSchedule] = useState(null);
+  // State pour le modal d'export
+  const [showExport, setShowExport] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState(null);
 
   const permissions = usePermissions();
 
@@ -154,20 +159,24 @@ const Personnel = () => {
 
   // Appliquer les filtres
   const handleApplyFilters = (newFilters) => {
-    console.log('Received filters in Personnel handleApplyFilters:', newFilters);
+    console.log('Personnel - Received filters:', newFilters);
     
-    // Make sure to preserve ALL filters including status
+    // Merge filters properly
     const completeFilters = {
-      ...filters, // Keep existing filters
-      ...newFilters, // Override with new filters
-      search: searchTerm // Preserve search term
+      status: newFilters.status || 'all',
+      department: newFilters.department || 'all',
+      role: newFilters.role || 'all',
+      startDate: newFilters.startDate || '',
+      endDate: newFilters.endDate || '',
+      search: newFilters.search || searchTerm // Preserve search term
     };
     
-    console.log('Complete filters being set:', completeFilters);
+    console.log('Personnel - Complete filters being set:', completeFilters);
     
     setFilters(completeFilters);
+    setCurrentPage(1); // Reset to first page when filters change
     
-    // Use loadPersonnel instead of fetchPersonnelData
+    // Load personnel with new filters
     loadPersonnel(completeFilters);
   };
 
@@ -390,17 +399,34 @@ const Personnel = () => {
     }
   }, [notification]);
 
-  // Add this function to handle search changes:
+  // Update the handleSearchChange function
   const handleSearchChange = (newSearchTerm) => {
     setSearchTerm(newSearchTerm);
     
-    // Reload with current filters and new search term
+    // Update filters with new search term
     const filtersWithSearch = {
       ...filters,
       search: newSearchTerm
     };
     
-    loadPersonnel(filtersWithSearch);
+    setFilters(filtersWithSearch);
+    setCurrentPage(1); // Reset to first page
+    
+    // Debounce the search to avoid too many API calls
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    const timeout = setTimeout(() => {
+      loadPersonnel(filtersWithSearch);
+    }, 500); // 500ms delay
+    
+    setSearchTimeout(timeout);
+  };
+
+  // Add export handler function
+  const handleExport = () => {
+    setShowExport(true);
   };
 
   return (
@@ -449,6 +475,7 @@ const Personnel = () => {
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             onAddNew={permissions.canCreate ? handleAddEmployee : undefined} // Pass undefined if no permission
+            onExport={handleExport}  // Add this line
             totalCount={personnel.length}
           />
 
@@ -521,6 +548,14 @@ const Personnel = () => {
             />
           </div>
         </div>
+      )}
+
+      {showExport && (
+        <PersonnelExport
+          isOpen={showExport}
+          onClose={() => setShowExport(false)}
+          currentFilters={filters}
+        />
       )}
     </div>
   );
