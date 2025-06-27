@@ -658,49 +658,44 @@ const Stagiaires = () => {
     };
   }, []);
 
-  // Handle the export of multiple stagiaires
-  // Update the handleExport function to use your API service
   const handleExport = async (count) => {
-    setLoading(true);
-    try {
-      // Prepare export parameters
-      const exportParams = {
-        ...filters,
-        limit: count === 'all' ? undefined : count,
-        format: 'xlsx'
-      };
+  setLoading(true);
+  try {
+    const exportParams = {
+      ...filters,
+      limit: count === 'all' ? undefined : count,
+      format: 'xlsx'
+    };
 
-      // Call the exportStagiaires API function
-      const response = await exportStagiaires(exportParams);
+    // Make sure exportStagiaires uses responseType: 'blob'
+    const response = await exportStagiaires(exportParams);
 
-      // Create a file name with current date
-      const date = new Date().toISOString().split('T')[0];
-      const fileName = `stagiaires_export_${date}.xlsx`;
+    const date = new Date().toISOString().split('T')[0];
+    const fileName = `stagiaires_export_${date}.xlsx`;
 
-      // Save the blob as a file
-      saveAs(new Blob([response.data]), fileName);
+    // Save the blob directly
+    saveAs(response.data, fileName);
 
-      // Show success notification
-      setNotification({
-        show: true,
-        message: `Export de ${count === 'all' ? 'tous les' : count} stagiaires réussi`,
-        type: 'success'
-      });
+    setNotification({
+      show: true,
+      message: `Export de ${count === 'all' ? 'tous les' : count} stagiaires réussi`,
+      type: 'success'
+    });
 
-      setTimeout(() => {
-        setNotification({ show: false, message: '', type: '' });
-      }, 3000);
-    } catch (err) {
-      console.error("Erreur lors de l'export:", err);
-      setNotification({
-        show: true,
-        message: "Erreur lors de l'export: " + (err.message || "Une erreur s'est produite"),
-        type: 'error'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    setTimeout(() => {
+      setNotification({ show: false, message: '', type: '' });
+    }, 3000);
+  } catch (err) {
+    console.error("Erreur lors de l'export:", err);
+    setNotification({
+      show: true,
+      message: "Erreur lors de l'export: " + (err.message || "Une erreur s'est produite"),
+      type: 'error'
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Update the handleExportSingle function to use your API service
   const handleExportSingle = async (stagiaire) => {

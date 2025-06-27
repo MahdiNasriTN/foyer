@@ -172,7 +172,7 @@ const navItems = [
     hoverColor: '#A78BFA',
     lightColor: '#F5F3FF',
     category: 'gestion',
-    roles: ['superadmin'] // Superadmin only
+    roles: ['superadmin', 'admin'] // Superadmin only
   },
   { 
     name: 'Paramètres', 

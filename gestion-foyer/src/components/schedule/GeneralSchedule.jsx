@@ -4,6 +4,7 @@ import { fetchAllPersonnel, saveGeneralSchedule, fetchGeneralSchedule } from '..
 import { motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable'; // FIXED: Import autoTable as a named export
+import { useUser } from '../../contexts/UserContext'; // Add this import
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -473,6 +474,10 @@ const GeneralSchedule = () => {
         }
     };
 
+    const { userRole } = useUser(); // Get user role from context
+
+    const isReadOnly = userRole === 'admin';
+
     if (loading && personnel.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-64 space-y-4">
@@ -696,15 +701,17 @@ const GeneralSchedule = () => {
                                                 <td
                                                     key={`${personId}-${day}`}
                                                     className="p-2 border-r border-gray-200 last:border-r-0 relative align-top h-28"
-                                                    onClick={() => !shift && handleCellClick(personId, day, person)}
+                                                    onClick={() => !shift && !isReadOnly && handleCellClick(personId, day, person)}
+                                                    style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
                                                 >
                                                     {shift ? (
-                                                        <div 
+                                                        <div
                                                             className={`h-full w-full flex flex-col relative group rounded-lg border overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${shift.isDayOff
                                                                 ? 'border-red-200 bg-gradient-to-r from-red-50 to-pink-50'
                                                                 : `${colorScheme.border}`
                                                             }`}
-                                                            onClick={() => handleShiftClick(personId, day, person, shift)}
+                                                            onClick={() => !isReadOnly && handleShiftClick(personId, day, person, shift)}
+                                                            style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
                                                         >
                                                             {shift.isDayOff ? (
                                                                 // Day Off Display
@@ -718,7 +725,8 @@ const GeneralSchedule = () => {
                                                                         )}
                                                                         
                                                                         {/* Action buttons */}
-                                                                        <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        {!isReadOnly && (
+                                                                          <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
@@ -742,6 +750,7 @@ const GeneralSchedule = () => {
                                                                                 <XIcon className="h-3 w-3" />
                                                                             </button>
                                                                         </div>
+                                                                        )}
                                                                     </div>
                                                                 </>
                                                             ) : (
@@ -761,7 +770,8 @@ const GeneralSchedule = () => {
                                                                         </div>
                                                                         
                                                                         {/* Action buttons */}
-                                                                        <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        {!isReadOnly && (
+                                                                          <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
@@ -790,7 +800,8 @@ const GeneralSchedule = () => {
                                                                                     <XIcon className="h-3 w-3" />
                                                                                 )}
                                                                             </button>
-                                                                        </div>
+                                                                          </div>
+                                                                        )}
                                                                     </div>
 
                                                                     {/* Content */}
@@ -822,10 +833,15 @@ const GeneralSchedule = () => {
                                                         </div>
                                                     ) : (
                                                         // Empty cell
-                                                        <div className="flex items-center justify-center h-full w-full cursor-pointer group rounded-lg border border-dashed border-gray-300 hover:border-blue-300 transition-colors">
-                                                            <div className="rounded-full p-3 bg-gray-50 group-hover:bg-blue-50 transition-colors transform group-hover:scale-110 duration-200">
-                                                                <PlusIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-500" />
-                                                            </div>
+                                                        <div
+                                                            className="flex items-center justify-center h-full w-full cursor-pointer group rounded-lg border border-dashed border-gray-300 hover:border-blue-300 transition-colors"
+                                                            style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
+                                                        >
+                                                            {!isReadOnly && (
+                                                              <div className="rounded-full p-3 bg-gray-50 group-hover:bg-blue-50 transition-colors transform group-hover:scale-110 duration-200">
+                                                                  <PlusIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-500" />
+                                                              </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </td>

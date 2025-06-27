@@ -188,9 +188,7 @@ function App() {
                   
                   {/* SuperAdmin only routes */}
                   <Route path="/schedule" element={
-                    <SuperAdminRoute>
                       <Schedule />
-                    </SuperAdminRoute>
                   } />
                   <Route path="/settings" element={
                     <SuperAdminRoute>
