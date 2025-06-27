@@ -699,38 +699,31 @@ const Stagiaires = () => {
 
   // Update the handleExportSingle function to use your API service
   const handleExportSingle = async (stagiaire) => {
-    setLoading(true);
-    try {
-      // Call the exportStagiaire API function
-      const response = await exportStagiaire(stagiaire._id);
+  setLoading(true);
+  try {
+    // This will trigger the download directly
+    await exportStagiaire(stagiaire._id);
 
-      // Create a file name with stagiaire name and ID
-      const fileName = `stagiaire_${stagiaire.firstName}_${stagiaire.lastName}_${stagiaire._id}.xlsx`;
+    setNotification({
+      show: true,
+      message: `Export du stagiaire ${stagiaire.firstName} ${stagiaire.lastName} réussi`,
+      type: 'success'
+    });
 
-      // Save the blob as a file
-      saveAs(new Blob([response.data]), fileName);
-
-      // Show success notification
-      setNotification({
-        show: true,
-        message: `Export du stagiaire ${stagiaire.firstName} ${stagiaire.lastName} réussi`,
-        type: 'success'
-      });
-
-      setTimeout(() => {
-        setNotification({ show: false, message: '', type: '' });
-      }, 3000);
-    } catch (err) {
-      console.error("Erreur lors de l'export:", err);
-      setNotification({
-        show: true,
-        message: "Erreur lors de l'export: " + (err.message || "Une erreur s'est produite"),
-        type: 'error'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    setTimeout(() => {
+      setNotification({ show: false, message: '', type: '' });
+    }, 3000);
+  } catch (err) {
+    console.error("Erreur lors de l'export:", err);
+    setNotification({
+      show: true,
+      message: "Erreur lors de l'export: " + (err.message || "Une erreur s'est produite"),
+      type: 'error'
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const permissions = usePermissions();
 

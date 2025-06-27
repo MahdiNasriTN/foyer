@@ -512,7 +512,7 @@ export const exportStagiaire = async (stagiaireId) => {
     
     // Create blob link to download
     const blob = new Blob([response.data], { 
-      type: 'application/pdf' // Assuming single stagiaire export is PDF
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
     
     const downloadUrl = window.URL.createObjectURL(blob);
@@ -521,7 +521,7 @@ export const exportStagiaire = async (stagiaireId) => {
     
     // Get filename from response headers if available
     const contentDisposition = response.headers['content-disposition'];
-    let filename = `stagiaire_${stagiaireId}.pdf`;
+    let filename = `stagiaire_${stagiaireId}.xlsx`;
     
     if (contentDisposition) {
       const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
