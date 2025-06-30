@@ -173,7 +173,7 @@ const PersonnelStats = ({ stats }) => {
             <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mb-2">
               <ClockIcon className="h-5 w-5 text-amber-600" />
             </div>
-            <span className="text-xs font-medium text-gray-600">En congé</span>
+            <span className="text-xs font-medium text-gray-600">En Repos</span>
             <span className="text-sm font-bold text-gray-800">4</span>
           </div>
           

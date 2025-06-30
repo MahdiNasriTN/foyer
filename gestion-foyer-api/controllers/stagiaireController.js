@@ -1062,33 +1062,43 @@ exports.getAvailableStagiaires = async (req, res) => {
 // Export multiple stagiaires
 exports.exportStagiaires = async (req, res) => {
   try {
-    // Apply the same filtering logic as in getAllStagiaires
     const query = buildStagiaireQuery(req.query);
-    
-    // Limit results if requested
     const limit = req.query.limit ? parseInt(req.query.limit) : null;
-    
-    // Get stagiaires from database
     let stagiaires;
     if (limit) {
-      stagiaires = await Stagiaire.find(query).limit(limit).populate('chambre');
+      stagiaires = await Stagiaire.find(query).limit(limit);
     } else {
-      stagiaires = await Stagiaire.find(query).populate('chambre');
+      stagiaires = await Stagiaire.find(query);
     }
-    
-    
-    // Create Excel workbook
+
+    // Get all rooms once
+    const allRooms = await Chambre.find({}, { numero: 1, occupants: 1 });
+
+    // Map stagiaireId => chambre.numero
+    const stagiaireToRoom = {};
+    allRooms.forEach(room => {
+      room.occupants.forEach(occupantId => {
+        stagiaireToRoom[occupantId.toString()] = room.numero;
+      });
+    });
+
     const workbook = new Excel.Workbook();
     const worksheet = workbook.addWorksheet('Stagiaires');
-    
-    // Define columns with headers - Including ALL fields from the model
+
     worksheet.columns = [
       { header: 'Identifiant', key: 'identifier', width: 15 },
       { header: 'Prénom', key: 'firstName', width: 20 },
       { header: 'Nom', key: 'lastName', width: 20 },
       { header: 'Email', key: 'email', width: 30 },
       { header: 'Téléphone', key: 'telephone', width: 15 },
+      { header: 'Numéro de téléphone', key: 'phoneNumber', width: 15 },
       { header: 'Sexe', key: 'sexe', width: 10 },
+      { header: 'Date de naissance', key: 'dateOfBirth', width: 15 },
+      { header: 'Lieu de naissance', key: 'placeOfBirth', width: 20 },
+      { header: 'Nationalité', key: 'nationality', width: 15 },
+      { header: 'CIN', key: 'cinNumber', width: 15 },
+      { header: 'Lieu CIN', key: 'cinPlace', width: 15 },
+      { header: 'Date CIN', key: 'cinDate', width: 15 },
       { header: 'Type', key: 'type', width: 10 },
       { header: 'Chambre', key: 'chambre', width: 10 },
       { header: 'Date d\'arrivée', key: 'dateArrivee', width: 15 },
@@ -1096,278 +1106,259 @@ exports.exportStagiaires = async (req, res) => {
       { header: 'Entreprise', key: 'entreprise', width: 20 },
       { header: 'Cycle', key: 'cycle', width: 10 },
       { header: 'Session', key: 'sessionYear', width: 10 },
-      { header: 'Statut', key: 'status', width: 15 },
-      { header: 'CIN/Passport', key: 'cinPassport', width: 20 },
-      { header: 'Nationalité', key: 'nationality', width: 15 },
-      { header: 'Date de naissance', key: 'birthDate', width: 15 },
-      { header: 'Adresse', key: 'address', width: 30 },
+      { header: 'Adresse', key: 'sendingAddress', width: 30 },
       { header: 'Ville', key: 'city', width: 15 },
-      { header: 'Pays', key: 'country', width: 15 },
-      { header: 'Situation Actuelle', key: 'currentSituation', width: 20 },
-      { header: 'Établissement', key: 'establishment', width: 20 },
+      { header: 'Code Postal', key: 'postalCode', width: 10 },
+      { header: 'Centre', key: 'centerName', width: 20 },
       { header: 'Centre Affecté', key: 'assignedCenter', width: 20 },
+      { header: 'Spécialité', key: 'specialization', width: 20 },
       { header: 'Numéro de Groupe', key: 'groupNumber', width: 15 },
+      { header: 'Carte Hébergement', key: 'carteHebergement', width: 15 },
+      { header: 'Situation Actuelle', key: 'currentSituation', width: 20 },
+      { header: 'Photo', key: 'profilePhoto', width: 20 },
       { header: 'Notes', key: 'notes', width: 30 },
+      // Family
+      { header: 'Prénom Père', key: 'fatherFirstName', width: 15 },
+      { header: 'Nom Père', key: 'fatherLastName', width: 15 },
+      { header: 'Téléphone Père', key: 'fatherPhone', width: 15 },
+      { header: 'Profession Père', key: 'fatherJob', width: 15 },
+      { header: 'Lieu Travail Père', key: 'fatherJobPlace', width: 15 },
+      { header: 'Prénom Mère', key: 'motherFirstName', width: 15 },
+      { header: 'Nom Mère', key: 'motherLastName', width: 15 },
+      { header: 'Téléphone Mère', key: 'motherPhone', width: 15 },
+      { header: 'Profession Mère', key: 'motherJob', width: 15 },
+      { header: 'Lieu Travail Mère', key: 'motherJobPlace', width: 15 },
+      { header: 'Nombre de Frères', key: 'numberOfBrothers', width: 10 },
+      { header: 'Nombre de Soeurs', key: 'numberOfSisters', width: 10 },
+      { header: 'Hobby', key: 'hobby', width: 15 },
+      // Payment
+      { header: 'Restauration Activée', key: 'restaurationEnabled', width: 10 },
+      { header: 'Restauration Statut', key: 'restaurationStatus', width: 10 },
+      { header: 'Restauration Semestre 1', key: 'restaurationSemester1', width: 10 },
+      { header: 'Restauration Semestre 2', key: 'restaurationSemester2', width: 10 },
+      { header: 'Restauration Semestre 3', key: 'restaurationSemester3', width: 10 },
+      { header: 'Foyer Activé', key: 'foyerEnabled', width: 10 },
+      { header: 'Foyer Statut', key: 'foyerStatus', width: 10 },
+      { header: 'Foyer Semestre 1', key: 'foyerSemester1', width: 10 },
+      { header: 'Foyer Semestre 2', key: 'foyerSemester2', width: 10 },
+      { header: 'Foyer Semestre 3', key: 'foyerSemester3', width: 10 },
+      { header: 'Inscription Activée', key: 'inscriptionEnabled', width: 10 },
+      { header: 'Inscription Statut', key: 'inscriptionStatus', width: 10 },
+      { header: 'Inscription Montant Annuel', key: 'inscriptionAnnual', width: 10 },
+      { header: 'Montant Total', key: 'totalAmount', width: 10 },
+      { header: 'Dernière Maj Paiement', key: 'lastUpdated', width: 15 },
+      // Dates
       { header: 'Date de création', key: 'createdAt', width: 20 },
       { header: 'Dernière modification', key: 'updatedAt', width: 20 }
     ];
-    
-    // Style the header row
+
     worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
-    };
-    
-    // Add data rows
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+
     stagiaires.forEach(stagiaire => {
-      // Calculate status
-      const now = new Date();
-      const isActive = stagiaire.dateArrivee <= now && stagiaire.dateDepart >= now;
-      
-      // Build row data with all fields
+      // Find the room number by occupant
+      let chambreValue = '-';
+      if (stagiaire.type === 'interne') {
+        chambreValue = stagiaireToRoom[stagiaire._id.toString()] || '-';
+      }
+
       const rowData = {
-        id: stagiaire._id.toString(),
+        identifier: stagiaire.identifier || '',
         firstName: stagiaire.firstName || '',
         lastName: stagiaire.lastName || '',
         email: stagiaire.email || '',
         telephone: stagiaire.telephone || '',
+        phoneNumber: stagiaire.phoneNumber || '',
         sexe: stagiaire.sexe || '',
-        type: stagiaire.type || 'N/A',
-        identifier: stagiaire.identifier || '',
-        chambre: stagiaire.chambre ? stagiaire.chambre.numero : 'Non assignée',
+        dateOfBirth: stagiaire.dateOfBirth ? new Date(stagiaire.dateOfBirth).toLocaleDateString() : '',
+        placeOfBirth: stagiaire.placeOfBirth || '',
+        nationality: stagiaire.nationality || '',
+        cinNumber: stagiaire.cinNumber || '',
+        cinPlace: stagiaire.cinPlace || '',
+        cinDate: stagiaire.cinDate ? new Date(stagiaire.cinDate).toLocaleDateString() : '',
+        type: stagiaire.type || '',
+        chambre: chambreValue,
         dateArrivee: stagiaire.dateArrivee ? new Date(stagiaire.dateArrivee).toLocaleDateString() : '',
         dateDepart: stagiaire.dateDepart ? new Date(stagiaire.dateDepart).toLocaleDateString() : '',
         entreprise: stagiaire.entreprise || '',
         cycle: stagiaire.cycle || '',
         sessionYear: stagiaire.sessionYear || '',
-        status: isActive ? 'Actif' : 'Inactif',
-        cinPassport: stagiaire.cin || stagiaire.passport || '',
-        nationality: stagiaire.nationality || '',
-        birthDate: stagiaire.birthDate ? new Date(stagiaire.birthDate).toLocaleDateString() : '',
-        address: stagiaire.address || '',
+        sendingAddress: stagiaire.sendingAddress || '',
         city: stagiaire.city || '',
-        country: stagiaire.country || '',
-        currentSituation: stagiaire.currentSituation || '',
-        establishment: stagiaire.establishment || '',
+        postalCode: stagiaire.postalCode || '',
+        centerName: stagiaire.centerName || '',
         assignedCenter: stagiaire.assignedCenter || '',
+        specialization: stagiaire.specialization || '',
         groupNumber: stagiaire.groupNumber || '',
+        carteHebergement: stagiaire.carteHebergement || '',
+        currentSituation: stagiaire.currentSituation || '',
+        profilePhoto: stagiaire.profilePhoto || '',
         notes: stagiaire.notes || '',
+        fatherFirstName: stagiaire.fatherFirstName || '',
+        fatherLastName: stagiaire.fatherLastName || '',
+        fatherPhone: stagiaire.fatherPhone || '',
+        fatherJob: stagiaire.fatherJob || '',
+        fatherJobPlace: stagiaire.fatherJobPlace || '',
+        motherFirstName: stagiaire.motherFirstName || '',
+        motherLastName: stagiaire.motherLastName || '',
+        motherPhone: stagiaire.motherPhone || '',
+        motherJob: stagiaire.motherJob || '',
+        motherJobPlace: stagiaire.motherJobPlace || '',
+        numberOfBrothers: stagiaire.numberOfBrothers || '',
+        numberOfSisters: stagiaire.numberOfSisters || '',
+        hobby: stagiaire.hobby || '',
+        // Payment
+        restaurationEnabled: stagiaire.payment?.restaurationFoyer?.enabled ?? stagiaire.payment?.restauration?.enabled ?? '',
+        restaurationStatus: stagiaire.payment?.restaurationFoyer?.status ?? stagiaire.payment?.restauration?.status ?? '',
+        restaurationSemester1: stagiaire.payment?.restaurationFoyer?.semester1Price ?? stagiaire.payment?.restauration?.semester1Price ?? '',
+        restaurationSemester2: stagiaire.payment?.restaurationFoyer?.semester2Price ?? stagiaire.payment?.restauration?.semester2Price ?? '',
+        restaurationSemester3: stagiaire.payment?.restaurationFoyer?.semester3Price ?? stagiaire.payment?.restauration?.semester3Price ?? '',
+        foyerEnabled: stagiaire.payment?.restaurationFoyer?.enabled ?? '',
+        foyerStatus: stagiaire.payment?.restaurationFoyer?.status ?? '',
+        foyerSemester1: stagiaire.payment?.restaurationFoyer?.semester1Price ?? '',
+        foyerSemester2: stagiaire.payment?.restaurationFoyer?.semester2Price ?? '',
+        foyerSemester3: stagiaire.payment?.restaurationFoyer?.semester3Price ?? '',
+        inscriptionEnabled: stagiaire.payment?.inscription?.enabled ?? '',
+        inscriptionStatus: stagiaire.payment?.inscription?.status ?? '',
+        inscriptionAnnual: stagiaire.payment?.inscription?.annualPrice ?? '',
+        totalAmount: stagiaire.payment?.totalAmount ?? '',
+        lastUpdated: stagiaire.payment?.lastUpdated ? new Date(stagiaire.payment.lastUpdated).toLocaleString() : '',
         createdAt: stagiaire.createdAt ? new Date(stagiaire.createdAt).toLocaleString() : '',
         updatedAt: stagiaire.updatedAt ? new Date(stagiaire.updatedAt).toLocaleString() : ''
       };
-      
       worksheet.addRow(rowData);
     });
-    
-    // Add borders to all cells
-    worksheet.eachRow((row, rowNumber) => {
-      row.eachCell((cell) => {
-        cell.border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' }
-        };
+
+    worksheet.eachRow(row => {
+      row.eachCell(cell => {
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
       });
     });
-    
-    // Freeze the header row
-    worksheet.views = [
-      { state: 'frozen', ySplit: 1, activeCell: 'A2' }
-    ];
-    
-    // Add filters to headers to make the data filterable in Excel
-    worksheet.autoFilter = {
-      from: 'A1',
-      to: 'AB1'  // Adjust this based on the number of columns
-    };
-    
-    // Set response headers
+
+    worksheet.views = [{ state: 'frozen', ySplit: 1, activeCell: 'A2' }];
+    worksheet.autoFilter = { from: 'A1', to: 'BM1' };
+
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename=stagiaires.xlsx');
-    
-    // Send the workbook
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
     console.error('Error exporting stagiaires:', error);
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
+    res.status(500).json({ status: 'error', message: error.message });
   }
 };
 
-// Export single stagiaire
-// Export single stagiaire with table format
 exports.exportStagiaire = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Get stagiaire from database
     const stagiaire = await Stagiaire.findById(id).populate('chambre');
-    
     if (!stagiaire) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Stagiaire not found'
-      });
+      return res.status(404).json({ status: 'error', message: 'Stagiaire not found' });
     }
-    
-    // Create Excel workbook
+
     const workbook = new Excel.Workbook();
     const worksheet = workbook.addWorksheet('Détails Stagiaire');
-    
-    // Define columns
+
     worksheet.columns = [
       { header: 'Attribut', key: 'attribute', width: 25 },
       { header: 'Valeur', key: 'value', width: 50 }
     ];
-    
-    // Style the header row
+
     worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
-    };
-    
-    // Calculate status
-    const now = new Date();
-    const isActive = stagiaire.dateArrivee <= now && stagiaire.dateDepart >= now;
-    
-    // Add rows for common fields
-    const rows = [
-      { attribute: 'Identifiant', value: stagiaire.identifier || '' },
-      { attribute: 'Prénom', value: stagiaire.firstName || '' },
-      { attribute: 'Nom', value: stagiaire.lastName || '' },
-      { attribute: 'Email', value: stagiaire.email || '' },
-      { attribute: 'Téléphone', value: stagiaire.telephone || '' },
-      { attribute: 'Sexe', value: stagiaire.sexe || '' },
-      { attribute: 'Type', value: stagiaire.type || 'N/A' },
-      { attribute: 'Chambre', value: stagiaire.chambre ? stagiaire.chambre.numero : 'Non assignée' },
-      { attribute: 'Date d\'arrivée', value: stagiaire.dateArrivee ? new Date(stagiaire.dateArrivee).toLocaleDateString() : '' },
-      { attribute: 'Date de départ', value: stagiaire.dateDepart ? new Date(stagiaire.dateDepart).toLocaleDateString() : '' },
-      { attribute: 'Entreprise', value: stagiaire.entreprise || '' },
-      { attribute: 'Cycle', value: stagiaire.cycle || '' },
-      { attribute: 'Session', value: stagiaire.sessionYear || '' },
-      { attribute: 'Statut', value: isActive ? 'Actif' : 'Inactif' },
-      { attribute: 'Adresse', value: stagiaire.address || '' },
-      { attribute: 'Ville', value: stagiaire.city || '' },
-      { attribute: 'Pays', value: stagiaire.country || '' },
-      { attribute: 'Notes', value: stagiaire.notes || '' },
-      { attribute: 'Date de création', value: stagiaire.createdAt ? new Date(stagiaire.createdAt).toLocaleString() : '' },
-      { attribute: 'Dernière modification', value: stagiaire.updatedAt ? new Date(stagiaire.updatedAt).toLocaleString() : '' }
-    ];
-    
-    // Add type-specific fields
-    if (stagiaire.type === 'interne') {
-      rows.push(
-        { attribute: 'Nationalité', value: stagiaire.nationality || 'N/A' },
-        { attribute: 'Date de naissance', value: stagiaire.birthDate ? new Date(stagiaire.birthDate).toLocaleDateString() : '' },
-        { attribute: 'CIN/Passport', value: stagiaire.cin || stagiaire.passport || 'N/A' },
-        { attribute: 'Situation actuelle', value: stagiaire.currentSituation || 'N/A' },
-        { attribute: 'Établissement', value: stagiaire.establishment || 'N/A' }
-        // Add any other intern-specific fields
-      );
-    } else if (stagiaire.type === 'externe') {
-      rows.push(
-        { attribute: 'Centre affecté', value: stagiaire.assignedCenter || 'N/A' },
-        { attribute: 'Numéro de groupe', value: stagiaire.groupNumber || 'N/A' }
-        // Add any other extern-specific fields
-      );
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+
+    // Determine chambre value
+    let chambreValue = '-';
+    if (stagiaire.type === 'interne' && stagiaire.chambre && stagiaire.chambre.numero) {
+      chambreValue = stagiaire.chambre.numero;
     }
-    
-    // Add the rows to the worksheet
-    worksheet.addRows(rows);
-    
-    // Add borders to all cells
-    worksheet.eachRow((row) => {
-      row.eachCell((cell) => {
-        cell.border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' }
-        };
+
+    // Add all fields as rows
+    const fields = [
+      ['Identifiant', stagiaire.identifier],
+      ['Prénom', stagiaire.firstName],
+      ['Nom', stagiaire.lastName],
+      ['Email', stagiaire.email],
+      ['Téléphone', stagiaire.telephone],
+      ['Numéro de téléphone', stagiaire.phoneNumber],
+      ['Sexe', stagiaire.sexe],
+      ['Date de naissance', stagiaire.dateOfBirth ? new Date(stagiaire.dateOfBirth).toLocaleDateString() : ''],
+      ['Lieu de naissance', stagiaire.placeOfBirth],
+      ['Nationalité', stagiaire.nationality],
+      ['CIN', stagiaire.cinNumber],
+      ['Lieu CIN', stagiaire.cinPlace],
+      ['Date CIN', stagiaire.cinDate ? new Date(stagiaire.cinDate).toLocaleDateString() : ''],
+      ['Type', stagiaire.type],
+      ['Chambre', chambreValue],
+      ['Date d\'arrivée', stagiaire.dateArrivee ? new Date(stagiaire.dateArrivee).toLocaleDateString() : ''],
+      ['Date de départ', stagiaire.dateDepart ? new Date(stagiaire.dateDepart).toLocaleDateString() : ''],
+      ['Entreprise', stagiaire.entreprise],
+      ['Cycle', stagiaire.cycle],
+      ['Session', stagiaire.sessionYear],
+      ['Adresse', stagiaire.sendingAddress],
+      ['Ville', stagiaire.city],
+      ['Code Postal', stagiaire.postalCode],
+      ['Centre', stagiaire.centerName],
+      ['Centre Affecté', stagiaire.assignedCenter],
+      ['Spécialité', stagiaire.specialization],
+      ['Numéro de Groupe', stagiaire.groupNumber],
+      ['Carte Hébergement', stagiaire.carteHebergement],
+      ['Situation Actuelle', stagiaire.currentSituation],
+      ['Photo', stagiaire.profilePhoto],
+      ['Notes', stagiaire.notes],
+      // Family
+      ['Prénom Père', stagiaire.fatherFirstName],
+      ['Nom Père', stagiaire.fatherLastName],
+      ['Téléphone Père', stagiaire.fatherPhone],
+      ['Profession Père', stagiaire.fatherJob],
+      ['Lieu Travail Père', stagiaire.fatherJobPlace],
+      ['Prénom Mère', stagiaire.motherFirstName],
+      ['Nom Mère', stagiaire.motherLastName],
+      ['Téléphone Mère', stagiaire.motherPhone],
+      ['Profession Mère', stagiaire.motherJob],
+      ['Lieu Travail Mère', stagiaire.motherJobPlace],
+      ['Nombre de Frères', stagiaire.numberOfBrothers],
+      ['Nombre de Soeurs', stagiaire.numberOfSisters],
+      ['Hobby', stagiaire.hobby],
+      // Payment
+      ['Restauration Activée', stagiaire.payment?.restaurationFoyer?.enabled ?? stagiaire.payment?.restauration?.enabled ?? ''],
+      ['Restauration Statut', stagiaire.payment?.restaurationFoyer?.status ?? stagiaire.payment?.restauration?.status ?? ''],
+      ['Restauration Semestre 1', stagiaire.payment?.restaurationFoyer?.semester1Price ?? stagiaire.payment?.restauration?.semester1Price ?? ''],
+      ['Restauration Semestre 2', stagiaire.payment?.restaurationFoyer?.semester2Price ?? stagiaire.payment?.restauration?.semester2Price ?? ''],
+      ['Restauration Semestre 3', stagiaire.payment?.restaurationFoyer?.semester3Price ?? stagiaire.payment?.restauration?.semester3Price ?? ''],
+      ['Foyer Activé', stagiaire.payment?.restaurationFoyer?.enabled ?? ''],
+      ['Foyer Statut', stagiaire.payment?.restaurationFoyer?.status ?? ''],
+      ['Foyer Semestre 1', stagiaire.payment?.restaurationFoyer?.semester1Price ?? ''],
+      ['Foyer Semestre 2', stagiaire.payment?.restaurationFoyer?.semester2Price ?? ''],
+      ['Foyer Semestre 3', stagiaire.payment?.restaurationFoyer?.semester3Price ?? ''],
+      ['Inscription Activée', stagiaire.payment?.inscription?.enabled ?? ''],
+      ['Inscription Statut', stagiaire.payment?.inscription?.status ?? ''],
+      ['Inscription Montant Annuel', stagiaire.payment?.inscription?.annualPrice ?? ''],
+      ['Montant Total', stagiaire.payment?.totalAmount ?? ''],
+      ['Dernière Maj Paiement', stagiaire.payment?.lastUpdated ? new Date(stagiaire.payment.lastUpdated).toLocaleString() : ''],
+      // Dates
+      ['Date de création', stagiaire.createdAt ? new Date(stagiaire.createdAt).toLocaleString() : ''],
+      ['Dernière modification', stagiaire.updatedAt ? new Date(stagiaire.updatedAt).toLocaleString() : '']
+    ];
+
+    worksheet.addRows(fields.map(([attribute, value]) => ({ attribute, value: value ?? '' })));
+
+    worksheet.eachRow(row => {
+      row.eachCell(cell => {
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
       });
     });
-    
-    // Style the attribute column
+
     worksheet.getColumn(1).font = { bold: true };
-    worksheet.getColumn(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFF5F5F5' }
-    };
-    
-    // Freeze the header row
-    worksheet.views = [
-      { state: 'frozen', ySplit: 1, activeCell: 'A2' }
-    ];
-    
-    // Add a second worksheet with additional details if needed
-    if (stagiaire.chambre) {
-      const chambreSheet = workbook.addWorksheet('Informations Chambre');
-      
-      chambreSheet.columns = [
-        { header: 'Attribut', key: 'attribute', width: 25 },
-        { header: 'Valeur', key: 'value', width: 50 }
-      ];
-      
-      // Style the header row
-      chambreSheet.getRow(1).font = { bold: true };
-      chambreSheet.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE0E0E0' }
-      };
-      
-      // Add chambre details
-      chambreSheet.addRows([
-        { attribute: 'Numéro', value: stagiaire.chambre.numero || '' },
-        { attribute: 'Étage', value: stagiaire.chambre.etage || '' },
-        { attribute: 'Capacité', value: stagiaire.chambre.capacite || '' },
-        { attribute: 'Type', value: stagiaire.chambre.type || '' },
-        { attribute: 'Status', value: stagiaire.chambre.status || '' }
-      ]);
-      
-      // Add borders to all cells
-      chambreSheet.eachRow((row) => {
-        row.eachCell((cell) => {
-          cell.border = {
-            top: { style: 'thin' },
-            left: { style: 'thin' },
-            bottom: { style: 'thin' },
-            right: { style: 'thin' }
-          };
-        });
-      });
-      
-      // Style the attribute column
-      chambreSheet.getColumn(1).font = { bold: true };
-      chambreSheet.getColumn(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFF5F5F5' }
-      };
-    }
-    
-    // Set response headers
+    worksheet.getColumn(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
+
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=stagiaire_${stagiaire.firstName}_${stagiaire.lastName}_${stagiaire._id}.xlsx`);
-    
-    // Send the workbook
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
     console.error(`Error exporting stagiaire ${req.params.id}:`, error);
-    res.status(500).json({ 
-      status: 'error', 
-      message: 'Server error while exporting single stagiaire' 
-    });
+    res.status(500).json({ status: 'error', message: 'Server error while exporting single stagiaire' });
   }
 };
 

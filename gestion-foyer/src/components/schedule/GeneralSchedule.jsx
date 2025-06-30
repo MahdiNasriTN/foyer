@@ -881,8 +881,8 @@ const GeneralSchedule = () => {
                                     <div className="flex-1">
                                         <h3 className="text-xl font-bold">
                                             {isEditingShift 
-                                                ? (shiftDetails.isDayOff ? 'Modifier le jour de congé' : 'Modifier l\'horaire de travail')
-                                                : (shiftDetails.isDayOff ? 'Marquer comme jour de congé' : 'Ajouter un horaire de travail')
+                                                ? (shiftDetails.isDayOff ? 'Modifier le jour de repos' : 'Modifier l\'horaire de travail')
+                                                : (shiftDetails.isDayOff ? 'Marquer comme jour de repos' : 'Ajouter un horaire de travail')
                                             }
                                         </h3>
                                         <div className="mt-1 flex items-center">
@@ -953,8 +953,8 @@ const GeneralSchedule = () => {
                                                     {shiftDetails.isDayOff && <div className="w-2 h-2 rounded-full bg-white"></div>}
                                                 </div>
                                                 <div>
-                                                    <div className="font-medium text-gray-900">🏖️ Jour de congé</div>
-                                                    <div className="text-sm text-gray-500">Repos, congés, vacances</div>
+                                                    <div className="font-medium text-gray-900">🏖️ Jour de repos</div>
+                                                    <div className="text-sm text-gray-500">Repos</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1096,7 +1096,7 @@ const GeneralSchedule = () => {
                                 {/* Description - always show but change placeholder */}
                                 <div className="mb-6">
                                     <label htmlFor="notes" className="block text-base font-semibold text-gray-800 mb-3">
-                                        {shiftDetails.isDayOff ? 'Motif du congé (optionnel)' : 'Description générale'}
+                                        {shiftDetails.isDayOff ? 'Motif du repos (optionnel)' : 'Description générale'}
                                     </label>
                                     <div className="relative">
                                         <DocumentTextIcon className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
@@ -1106,7 +1106,7 @@ const GeneralSchedule = () => {
                                             value={shiftDetails.notes}
                                             onChange={(e) => setShiftDetails({ ...shiftDetails, notes: e.target.value })}
                                             className="block w-full pl-10 pr-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg shadow-sm resize-none"
-                                            placeholder={shiftDetails.isDayOff ? "Congés annuels, congé maladie, formation..." : "Description générale de ce créneau horaire..."}
+                                            placeholder={shiftDetails.isDayOff ? "repos" : "Description générale de ce créneau horaire..."}
                                         ></textarea>
                                     </div>
                                 </div>
