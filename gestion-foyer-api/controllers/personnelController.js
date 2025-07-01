@@ -1,5 +1,6 @@
 const Personnel = require('../models/personnel');
 const mongoose = require('mongoose'); // Add this import at the top
+const Excel = require('exceljs'); // For Excel export functionality
 
 // Obtenir tous les membres du personnel avec filtrage
 exports.getAllPersonnel = async (req, res) => {
@@ -646,6 +647,76 @@ exports.exportPersonnel = async (req, res) => {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename=personnel_par_poste_${new Date().toISOString().split('T')[0]}.csv`);
       return res.send('\uFEFF' + csvContent); // Add BOM for proper UTF-8 encoding
+    }
+
+    if (format === 'excel') {
+      // Generate Excel file
+      const workbook = new Excel.Workbook();
+      const worksheet = workbook.addWorksheet('Personnel par Poste');
+
+      // Set worksheet columns
+      worksheet.columns = [
+        { header: 'Poste', key: 'poste', width: 20 },
+        { header: 'Identifiant', key: 'identifier', width: 15 },
+        { header: 'Nom', key: 'nom', width: 25 },
+        { header: 'Email', key: 'email', width: 30 },
+        { header: 'Téléphone', key: 'telephone', width: 15 },
+        { header: 'Département', key: 'departement', width: 20 },
+        { header: 'Date d\'embauche', key: 'dateEmbauche', width: 15 },
+        { header: 'Statut', key: 'statut', width: 10 },
+        { header: 'Adresse', key: 'adresse', width: 30 }
+      ];
+
+      // Style the header row
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+
+      // Add data rows
+      Object.keys(personnelByPoste).sort().forEach(poste => {
+        personnelByPoste[poste].forEach(emp => {
+          worksheet.addRow({
+            poste: poste,
+            identifier: emp.identifier || '-',
+            nom: emp.nom || '-',
+            email: emp.email || '-',
+            telephone: emp.telephone || '-',
+            departement: emp.departement || '-',
+            dateEmbauche: emp.dateEmbauche || '-',
+            statut: emp.statut || '-',
+            adresse: emp.adresse || '-'
+          });
+        });
+      });
+
+      // Add borders to all cells
+      worksheet.eachRow(row => {
+        row.eachCell(cell => {
+          cell.border = { 
+            top: { style: 'thin' }, 
+            left: { style: 'thin' }, 
+            bottom: { style: 'thin' }, 
+            right: { style: 'thin' } 
+          };
+        });
+      });
+
+      // Set up autofilter
+      worksheet.autoFilter = { from: 'A1', to: 'I1' };
+
+      // Generate filename with current date
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `personnel_par_poste_${dateStr}.xlsx`;
+
+      // Set proper headers for Excel file download
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      // Write the Excel file to the response
+      await workbook.xlsx.write(res);
+      res.end();
+      
+      console.log(`Personnel Excel export completed successfully: ${filename}`);
+      return;
     }
 
     // Return JSON format for other formats or frontend processing

@@ -254,6 +254,15 @@ const stagiaireSchema = new mongoose.Schema({
     enum: ['oui', 'non'],
     default: 'non'
   },
+  // Add the restauration card field for external stagiaires
+  carteRestauration: {
+    type: String,
+    enum: ['oui', 'non'],
+    default: 'non',
+    required: function() {
+      return this.type === 'externe';
+    }
+  },
   chambre: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Chambre'
