@@ -129,7 +129,7 @@ const Login = ({ onLogin }) => {
           >
             <div className="pt-6 text-sm border-t border-blue-800/50">
               <p className="text-blue-200">
-                © 2025 Centre Sectoriel de Formation en Cuir et Chaussures de Sakiet Ezzit. Tous droits réservés.
+                © 2025 Centre Sectoriel de Formation en Cuir et Chaussures de Sakiet Ezzit Sfax. Tous droits réservés.
               </p>
             </div>
           </div>

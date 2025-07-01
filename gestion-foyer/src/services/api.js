@@ -88,6 +88,11 @@ export const fetchStagiaires = async (filters = {}) => {
       queryParams.append('search', filters.search);
     }
     
+    // Add type filter - NEW
+    if (filters.type && filters.type !== 'all') {
+      queryParams.append('type', filters.type);
+    }
+    
     // Existing filters
     if (filters.status && filters.status !== 'all') {
       queryParams.append('status', filters.status);
@@ -119,6 +124,11 @@ export const fetchStagiaires = async (filters = {}) => {
     
     if (filters.endDate) {
       queryParams.append('endDate', filters.endDate);
+    }
+    
+    // NEW: Card filter
+    if (filters.cardFilter && filters.cardFilter !== 'all') {
+      queryParams.append('cardFilter', filters.cardFilter);
     }
     
     // NEW: Separate payment filters
@@ -471,10 +481,20 @@ export const exportStagiaires = async (filters = {}) => {
       responseType: 'blob' // Important for file downloads
     });
     
+    // Ensure we have a valid blob
+    if (!response.data || !(response.data instanceof Blob)) {
+      throw new Error('Invalid response format for file download');
+    }
+    
     // Create blob link to download
     const blob = new Blob([response.data], { 
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
     });
+    
+    // Check if blob is valid
+    if (blob.size === 0) {
+      throw new Error('Le fichier exporté est vide');
+    }
     
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -495,12 +515,16 @@ export const exportStagiaires = async (filters = {}) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    window.URL.revokeObjectURL(downloadUrl);
+    
+    // Clean up the URL object
+    setTimeout(() => {
+      window.URL.revokeObjectURL(downloadUrl);
+    }, 100);
     
     return { success: true, message: 'Export completed successfully' };
   } catch (error) {
     console.error('Error exporting stagiaires:', error);
-    throw error.response?.data || error;
+    throw error.response?.data || { message: error.message || 'Erreur lors de l\'export' };
   }
 };
 
@@ -510,10 +534,20 @@ export const exportStagiaire = async (stagiaireId) => {
       responseType: 'blob' // Important for file downloads
     });
     
+    // Ensure we have a valid blob
+    if (!response.data || !(response.data instanceof Blob)) {
+      throw new Error('Invalid response format for file download');
+    }
+    
     // Create blob link to download
     const blob = new Blob([response.data], { 
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
+    
+    // Check if blob is valid
+    if (blob.size === 0) {
+      throw new Error('Le fichier exporté est vide');
+    }
     
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -534,12 +568,16 @@ export const exportStagiaire = async (stagiaireId) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    window.URL.revokeObjectURL(downloadUrl);
+    
+    // Clean up the URL object
+    setTimeout(() => {
+      window.URL.revokeObjectURL(downloadUrl);
+    }, 100);
     
     return { success: true, message: 'Export completed successfully' };
   } catch (error) {
     console.error('Error exporting stagiaire:', error);
-    throw error.response?.data || error;
+    throw error.response?.data || { message: error.message || 'Erreur lors de l\'export' };
   }
 };
 

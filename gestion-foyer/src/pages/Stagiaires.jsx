@@ -812,7 +812,7 @@ const Stagiaires = () => {
             onResetFilters={handleResetFilters}
             getDisplayableChambre={getDisplayableChambre}
             onExportSingle={handleExportSingle}
-            onExport={handleExport}
+            onShowNotification={setNotification}
           />
         </>
       )}

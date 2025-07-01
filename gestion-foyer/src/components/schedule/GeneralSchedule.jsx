@@ -303,7 +303,7 @@ const GeneralSchedule = () => {
         return COLORS[colorIndex] || COLORS[0];
     };
 
-    // Export to PDF function - UPDATED with Director signature section
+    // Export to PDF function - UPDATED with Director signature section and logo
     const exportToPDF = () => {
         try {
             // Create new PDF document
@@ -312,162 +312,185 @@ const GeneralSchedule = () => {
             // Get current date for filename
             const currentDate = new Date().toLocaleDateString('fr-FR');
             
-            // PDF Title
-            doc.setFontSize(18);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Planning Général du Personnel', 20, 20);
+            // Add logo
+            const logoImg = new Image();
+            logoImg.onload = function() {
+                // Add logo to top left corner
+                doc.addImage(logoImg, 'JPEG', 20, 10, 25, 25); // x, y, width, height
+                
+                // Continue with the rest of the PDF generation after logo is loaded
+                generatePDFContent();
+            };
+            logoImg.onerror = function() {
+                console.warn('Could not load logo, continuing without it');
+                // Continue without logo if it fails to load
+                generatePDFContent();
+            };
+            logoImg.src = '/logo.jpg';
             
-            // Subtitle with filters info
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'normal');
-            let subtitle = `Généré le ${currentDate}`;
-            if (filters.name || filters.poste !== 'all') {
-                subtitle += ' - Filtres appliqués: ';
-                const activeFilters = [];
-                if (filters.name) activeFilters.push(`Nom: "${filters.name}"`);
-                if (filters.poste !== 'all') activeFilters.push(`Poste: ${filters.poste}`);
-                subtitle += activeFilters.join(', ');
-            }
-            doc.text(subtitle, 20, 30);
-            
-            // Employee count
-            doc.text(`${filteredPersonnel.length} employé${filteredPersonnel.length > 1 ? 's' : ''} affiché${filteredPersonnel.length > 1 ? 's' : ''}`, 20, 38);
+            // Function to generate the main PDF content
+            const generatePDFContent = () => {
+                // PDF Title (moved to the right to make space for logo)
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Planning Annuelle du Personnel', 55, 20);
+                // PDF Title (moved to the right to make space for logo)
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Planning Annuelle du Personnel', 55, 20);
+                
+                // Subtitle with filters info
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'normal');
+                let subtitle = `Généré le ${currentDate}`;
+                if (filters.name || filters.poste !== 'all') {
+                    subtitle += ' - Filtres appliqués: ';
+                    const activeFilters = [];
+                    if (filters.name) activeFilters.push(`Nom: "${filters.name}"`);
+                    if (filters.poste !== 'all') activeFilters.push(`Poste: ${filters.poste}`);
+                    subtitle += activeFilters.join(', ');
+                }
+                doc.text(subtitle, 55, 30);
+                
+                // Employee count
+                doc.text(`${filteredPersonnel.length} employé${filteredPersonnel.length > 1 ? 's' : ''} affiché${filteredPersonnel.length > 1 ? 's' : ''}`, 55, 38);
 
-            // Prepare table data
-            const tableColumns = ['Personnel', 'Poste', ...DAYS];
-            const tableRows = [];
+                // Prepare table data
+                const tableColumns = ['Personnel', 'Poste', ...DAYS];
+                const tableRows = [];
 
-            filteredPersonnel.forEach(person => {
-                const personId = person.id || person._id;
-                const row = [
-                    `${person.firstName} ${person.lastName}`,
-                    person.poste || 'Non spécifié'
-                ];
+                filteredPersonnel.forEach(person => {
+                    const personId = person.id || person._id;
+                    const row = [
+                        `${person.firstName} ${person.lastName}`,
+                        person.poste || 'Non spécifié'
+                    ];
 
-                // Add schedule data for each day
-                DAYS.forEach(day => {
-                    const shift = getShiftForCell(personId, day);
-                    if (shift) {
-                        if (shift.isDayOff) {
-                            row.push('Congé');
+                    // Add schedule data for each day
+                    DAYS.forEach(day => {
+                        const shift = getShiftForCell(personId, day);
+                        if (shift) {
+                            if (shift.isDayOff) {
+                                row.push('Repos');
+                            } else {
+                                // Use formatTimeRange for PDF export
+                                let cellContent = shift.startTime + ' => '+ shift.endTime;
+                                if (shift.notes) {
+                                    cellContent += `\n${shift.notes}`;
+                                }
+                                if (shift.tasks && shift.tasks.length > 0) {
+                                    cellContent += `\nTâches: ${shift.tasks.join(', ')}`;
+                                }
+                                row.push(cellContent);
+                            }
                         } else {
-                            // Use formatTimeRange for PDF export
-                            let cellContent = formatTimeRange(shift.startTime, shift.endTime);
-                            if (shift.notes) {
-                                cellContent += `\n${shift.notes}`;
-                            }
-                            if (shift.tasks && shift.tasks.length > 0) {
-                                cellContent += `\nTâches: ${shift.tasks.join(', ')}`;
-                            }
-                            row.push(cellContent);
+                            row.push('-');
                         }
-                    } else {
-                        row.push('-');
+                    });
+
+                    tableRows.push(row);
+                });
+
+                // Generate table using autoTable
+                autoTable(doc, {
+                    head: [tableColumns],
+                    body: tableRows,
+                    startY: 45,
+                    styles: {
+                        fontSize: 8,
+                        cellPadding: 3,
+                        overflow: 'linebreak',
+                        halign: 'left',
+                        valign: 'top'
+                    },
+                    headStyles: {
+                        fillColor: [71, 85, 105], // slate-600
+                        textColor: 255,
+                        fontStyle: 'bold',
+                        fontSize: 9,
+                        halign: 'center'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 35, halign: 'left' }, // Personnel name
+                        1: { cellWidth: 25, halign: 'left' }, // Poste
+                        2: { cellWidth: 25, halign: 'center' }, // Monday
+                        3: { cellWidth: 25, halign: 'center' }, // Tuesday
+                        4: { cellWidth: 25, halign: 'center' }, // Wednesday
+                        5: { cellWidth: 25, halign: 'center' }, // Thursday
+                        6: { cellWidth: 25, halign: 'center' }, // Friday
+                        7: { cellWidth: 25, halign: 'center' }, // Saturday
+                        8: { cellWidth: 25, halign: 'center' }  // Sunday
+                    },
+                    alternateRowStyles: {
+                        fillColor: [248, 250, 252] // gray-50
+                    },
+                    tableLineColor: [203, 213, 225], // gray-300
+                    tableLineWidth: 0.1,
+                    margin: { left: 15, right: 15 },
+                    // NEW: Add didDrawPage callback to add signature section
+                    didDrawPage: function (data) {
+                        // Get page dimensions
+                        const pageWidth = doc.internal.pageSize.width;
+                        const pageHeight = doc.internal.pageSize.height;
+                        
+                        // NEW: Add signature section at bottom right
+                        const signatureX = pageWidth - 80; // 80mm from right edge
+                        const signatureY = pageHeight - 40; // 40mm from bottom
+                        
+                        // Signature box
+                        doc.setDrawColor(71, 85, 105); // slate-600 color
+                        doc.setLineWidth(0.5);
+                        doc.rect(signatureX, signatureY, 65, 25); // Rectangle for signature
+                        
+                        // Signature label
+                        doc.setFontSize(10);
+                        doc.setFont('helvetica', 'bold');
+                        doc.setTextColor(71, 85, 105); // slate-600 color
+                        doc.text('Directeur De Centre', signatureX + 32.5, signatureY - 3, { align: 'center' });
+                        
+                        // Date and signature lines
+                        doc.setFontSize(8);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setTextColor(107, 114, 128); // gray-500 color
+                        
+                        // Date line
+                        doc.text('Date: _______________', signatureX + 2, signatureY + 8);
+                        
+                        // Signature line
+                        doc.text('Signature:', signatureX + 2, signatureY + 18);
+                        doc.line(signatureX + 20, signatureY + 18, signatureX + 63, signatureY + 18); // Signature line
+                        
+                        // Optional: Add a small watermark/logo area
+                        doc.setFontSize(6);
+                        doc.setTextColor(156, 163, 175); // gray-400 color
+                        doc.text('Approuvé par', signatureX + 32.5, signatureY + 4, { align: 'center' });
                     }
                 });
 
-                tableRows.push(row);
-            });
-
-            // Generate table using autoTable
-            autoTable(doc, {
-                head: [tableColumns],
-                body: tableRows,
-                startY: 45,
-                styles: {
-                    fontSize: 8,
-                    cellPadding: 3,
-                    overflow: 'linebreak',
-                    halign: 'left',
-                    valign: 'top'
-                },
-                headStyles: {
-                    fillColor: [71, 85, 105], // slate-600
-                    textColor: 255,
-                    fontStyle: 'bold',
-                    fontSize: 9,
-                    halign: 'center'
-                },
-                columnStyles: {
-                    0: { cellWidth: 35, halign: 'left' }, // Personnel name
-                    1: { cellWidth: 25, halign: 'left' }, // Poste
-                    2: { cellWidth: 25, halign: 'center' }, // Monday
-                    3: { cellWidth: 25, halign: 'center' }, // Tuesday
-                    4: { cellWidth: 25, halign: 'center' }, // Wednesday
-                    5: { cellWidth: 25, halign: 'center' }, // Thursday
-                    6: { cellWidth: 25, halign: 'center' }, // Friday
-                    7: { cellWidth: 25, halign: 'center' }, // Saturday
-                    8: { cellWidth: 25, halign: 'center' }  // Sunday
-                },
-                alternateRowStyles: {
-                    fillColor: [248, 250, 252] // gray-50
-                },
-                tableLineColor: [203, 213, 225], // gray-300
-                tableLineWidth: 0.1,
-                margin: { left: 15, right: 15 },
-                // NEW: Add didDrawPage callback to add signature section
-                didDrawPage: function (data) {
-                    // Get page dimensions
-                    const pageWidth = doc.internal.pageSize.width;
-                    const pageHeight = doc.internal.pageSize.height;
-                    
-                    // NEW: Add signature section at bottom right
-                    const signatureX = pageWidth - 80; // 80mm from right edge
-                    const signatureY = pageHeight - 40; // 40mm from bottom
-                    
-                    // Signature box
-                    doc.setDrawColor(71, 85, 105); // slate-600 color
-                    doc.setLineWidth(0.5);
-                    doc.rect(signatureX, signatureY, 65, 25); // Rectangle for signature
-                    
-                    // Signature label
+                // Add footer with page numbers (update to avoid overlap with signature)
+                const pageCount = doc.internal.getNumberOfPages();
+                for (let i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
                     doc.setFontSize(10);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setTextColor(71, 85, 105); // slate-600 color
-                    doc.text('Directeur De Centre', signatureX + 32.5, signatureY - 3, { align: 'center' });
-                    
-                    // Date and signature lines
-                    doc.setFontSize(8);
                     doc.setFont('helvetica', 'normal');
                     doc.setTextColor(107, 114, 128); // gray-500 color
                     
-                    // Date line
-                    doc.text('Date: _______________', signatureX + 2, signatureY + 8);
+                    // Position page number at bottom left to avoid signature area
+                    doc.text(`Page ${i} sur ${pageCount}`, 20, doc.internal.pageSize.height - 10);
                     
-                    // Signature line
-                    doc.text('Signature:', signatureX + 2, signatureY + 18);
-                    doc.line(signatureX + 20, signatureY + 18, signatureX + 63, signatureY + 18); // Signature line
-                    
-                    // Optional: Add a small watermark/logo area
-                    doc.setFontSize(6);
+                    // NEW: Add generation timestamp at bottom center
+                    doc.setFontSize(8);
                     doc.setTextColor(156, 163, 175); // gray-400 color
-                    doc.text('Approuvé par', signatureX + 32.5, signatureY + 4, { align: 'center' });
+                    const timestamp = new Date().toLocaleString('fr-FR');
+                    doc.text(`Généré le ${timestamp}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
                 }
-            });
 
-            // Add footer with page numbers (update to avoid overlap with signature)
-            const pageCount = doc.internal.getNumberOfPages();
-            for (let i = 1; i <= pageCount; i++) {
-                doc.setPage(i);
-                doc.setFontSize(10);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(107, 114, 128); // gray-500 color
+                // Save the PDF
+                const fileName = `planning_personnel_${currentDate.replace(/\//g, '-')}.pdf`;
+                doc.save(fileName);
                 
-                // Position page number at bottom left to avoid signature area
-                doc.text(`Page ${i} sur ${pageCount}`, 20, doc.internal.pageSize.height - 10);
-                
-                // NEW: Add generation timestamp at bottom center
-                doc.setFontSize(8);
-                doc.setTextColor(156, 163, 175); // gray-400 color
-                const timestamp = new Date().toLocaleString('fr-FR');
-                doc.text(`Généré le ${timestamp}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
-            }
-
-            // Save the PDF
-            const fileName = `planning_personnel_${currentDate.replace(/\//g, '-')}.pdf`;
-            doc.save(fileName);
-            
-            setSuccess('Export PDF réalisé avec succès !');
+                setSuccess('Export PDF réalisé avec succès !');
+            };
         } catch (error) {
             console.error('Error exporting PDF:', error);
             setError('Erreur lors de l\'export PDF');

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { exportStagiaires } from '../../services/api'; // Import the export function
 import { 
   PencilAltIcon, 
   TrashIcon, 
@@ -41,8 +42,8 @@ const StagiairesList = ({
   onApplyFilters,
   onResetFilters,
   getDisplayableChambre, // This function might be the issue
-  onExport,  
   onExportSingle,
+  onShowNotification,
   permissions // Add this prop
 }) => {
   const { canEdit, canDelete } = usePermissions();
@@ -63,7 +64,9 @@ const StagiairesList = ({
     // Make sure the localFilters includes the year field
     setLocalFilters({
       ...filters,
-      year: filters.year || 'all'
+      type: filters.type || 'all',
+      year: filters.year || 'all',
+      cardFilter: filters.cardFilter || 'all'
     });
   }, [filters]);
 
@@ -111,6 +114,7 @@ const StagiairesList = ({
   // Update your resetFilters function
   const resetFilters = () => {
     setLocalFilters({
+      type: 'all',
       status: 'all',
       room: 'all',
       specificRoom: '',
@@ -124,7 +128,9 @@ const StagiairesList = ({
       inscriptionPaymentStatus: '',
       hebergementTrimester1: false,
       hebergementTrimester2: false,
-      hebergementTrimester3: false
+      hebergementTrimester3: false,
+      // NEW: Add card filter
+      cardFilter: 'all'
     });
     setPaymentStatusFilter(''); // Keep for legacy support
     onResetFilters();
@@ -145,6 +151,8 @@ const StagiairesList = ({
   // Replace the getFilterCount function with this improved version:
   const getFilterCount = (filterType) => {
     return stagiaires.filter((stagiaire) => {
+      if (filterType === 'interne') return stagiaire.type === 'interne';
+      if (filterType === 'externe') return stagiaire.type === 'externe';
       if (filterType === 'active') return isStagiaireActif(stagiaire);
       if (filterType === 'inactive') return !isStagiaireActif(stagiaire);
       if (filterType === 'withRoom') {
@@ -172,6 +180,19 @@ const StagiairesList = ({
                         ((typeof stagiaire.chambre === 'object' && stagiaire.chambre.numero) ||
                          (typeof stagiaire.chambre === 'string')));
         return !hasRoom;
+      }
+      // NEW: Card filter counts
+      if (filterType === 'carteHebergement_oui') {
+        return stagiaire.type === 'interne' && stagiaire.carteHebergement === 'oui';
+      }
+      if (filterType === 'carteHebergement_non') {
+        return stagiaire.type === 'interne' && stagiaire.carteHebergement === 'non';
+      }
+      if (filterType === 'carteRestauration_oui') {
+        return stagiaire.type === 'externe' && stagiaire.carteRestauration === 'oui';
+      }
+      if (filterType === 'carteRestauration_non') {
+        return stagiaire.type === 'externe' && stagiaire.carteRestauration === 'non';
       }
       return false;
     }).length;
@@ -716,29 +737,50 @@ const StagiairesList = ({
     return years;
   };
 
-  // Replace the existing handleExport method with this one
-  const handleExport = (count) => {
-    setShowExportOptions(false);
+// Replace the existing handleExport method with this one
+const handleExport = async (count) => {
+  setShowExportOptions(false);
+  
+  try {
+    // Use the SAME filters that are currently applied to the list
+    const filterParams = { 
+      ...filters,  // This contains the current active filters
+      // Add the type and cardFilter if they exist in localFilters
+      type: localFilters.type || filters.type,
+      cardFilter: localFilters.cardFilter || filters.cardFilter
+    };
     
-    // Get the current filtered stagiaires
-    const stagiairesList = stagiaires; // This contains the already filtered results
-    
-    // Determine how many to export
-    let stagiaireToExport = [];
-    
-    if (count === 'all') {
-      stagiaireToExport = stagiairesList;
-    } else {
-      stagiaireToExport = stagiairesList.slice(0, parseInt(count));
+    // Add the limit parameter if not exporting all
+    if (count !== 'all') {
+      filterParams.limit = parseInt(count);
     }
     
-    // Call the parent component's onExport function with the filtered data
-    if (onExport) {
-      onExport(stagiaireToExport, count);
-    } else {
-      console.error("onExport prop is not defined");
+    console.log('Exporting with filters:', filterParams); // Debug log
+    
+    // Call the API export function with current filters
+    await exportStagiaires(filterParams);
+    
+    // Show success message
+    if (onShowNotification) {
+      onShowNotification({
+        show: true,
+        message: `Export de ${count === 'all' ? 'tous les' : count} stagiaires réussi`,
+        type: 'success'
+      });
     }
-  };
+  } catch (error) {
+    console.error('Erreur lors de l\'export:', error);
+    
+    // Show error message
+    if (onShowNotification) {
+      onShowNotification({
+        show: true,
+        message: error.message || 'Erreur lors de l\'export des stagiaires',
+        type: 'error'
+      });
+    }
+  }
+};
 
   return (
     <div className="relative overflow-hidden bg-white rounded-xl border border-gray-200">
@@ -851,6 +893,23 @@ const StagiairesList = ({
             <span>{getActiveFilterCount() > 0 ? `Filtres (${getActiveFilterCount()})` : 'Filtrer'}</span>
             <ChevronDownIcon className={`h-4 w-4 opacity-50 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
           </button>
+          
+          {/* Reset filters button */}
+          <button
+            onClick={onResetFilters}
+            className="flex items-center gap-1.5 bg-gray-100 py-2 px-3.5 rounded-lg text-sm text-gray-600 border border-gray-200 hover:bg-gray-200 transition-all shadow-sm hover:shadow-md"
+            title="Réinitialiser tous les filtres"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span className="hidden sm:inline">Réinitialiser</span>
+            {getActiveFilterCount() > 0 && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-red-100 text-red-800">
+                {getActiveFilterCount()}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -859,6 +918,50 @@ const StagiairesList = ({
         <div className="border-b border-gray-200">
           {/* Filter Bar - Displayed at the top of the list */}
           <div className="p-4 bg-white border-b border-gray-200 flex flex-wrap gap-3">
+            {/* Type Filters */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="text-xs font-medium text-gray-500 uppercase flex items-center mr-2">
+                <UserIcon className="h-3.5 w-3.5 mr-1" />
+                Type:
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                    localFilters.type === 'all' 
+                      ? 'bg-blue-100 text-blue-700 font-medium' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => handleFilterChange('type', 'all')}
+                >
+                  Tous
+                </button>
+                <button
+                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors flex items-center ${
+                    localFilters.type === 'interne' 
+                      ? 'bg-indigo-100 text-indigo-700 font-medium' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => handleFilterChange('type', 'interne')}
+                >
+                  <div className={localFilters.type === 'interne' ? "w-1.5 h-1.5 rounded-full bg-indigo-500 mr-1.5" : ""}></div>
+                  Internes <span className="ml-1 opacity-60">({getFilterCount('interne')})</span>
+                </button>
+                <button
+                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors flex items-center ${
+                    localFilters.type === 'externe' 
+                      ? 'bg-purple-100 text-purple-700 font-medium' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => handleFilterChange('type', 'externe')}
+                >
+                  <div className={localFilters.type === 'externe' ? "w-1.5 h-1.5 rounded-full bg-purple-500 mr-1.5" : ""}></div>
+                  Externes <span className="ml-1 opacity-60">({getFilterCount('externe')})</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
+
             {/* Status Filters */}
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="text-xs font-medium text-gray-500 uppercase flex items-center mr-2">
@@ -957,6 +1060,80 @@ const StagiairesList = ({
                 <div className="text-xs text-gray-400 italic ml-2">
                   (Les stagiaires externes n'ont pas de chambre)
                 </div>
+              </div>
+            </div>
+
+            <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
+
+            {/* Card Filters - Dynamic based on type */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="text-xs font-medium text-gray-500 uppercase flex items-center mr-2">
+                <span className="text-sm">🏷️</span>
+                Carte:
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                    localFilters.cardFilter === 'all' 
+                      ? 'bg-blue-100 text-blue-700 font-medium' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => handleFilterChange('cardFilter', 'all')}
+                >
+                  Toutes
+                </button>
+                
+                {/* Show Hébergement card filter for internal stagiaires or when type is 'all' */}
+                {(localFilters.type === 'interne' || localFilters.type === 'all') && (
+                  <>
+                    <button
+                      className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                        localFilters.cardFilter === 'carteHebergement_oui' 
+                          ? 'bg-blue-100 text-blue-700 font-medium' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      onClick={() => handleFilterChange('cardFilter', 'carteHebergement_oui')}
+                    >
+                      🏠 Hébergement Oui <span className="ml-1 opacity-60">({getFilterCount('carteHebergement_oui')})</span>
+                    </button>
+                    <button
+                      className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                        localFilters.cardFilter === 'carteHebergement_non' 
+                          ? 'bg-gray-200 text-gray-700 font-medium' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      onClick={() => handleFilterChange('cardFilter', 'carteHebergement_non')}
+                    >
+                      🏠 Hébergement Non <span className="ml-1 opacity-60">({getFilterCount('carteHebergement_non')})</span>
+                    </button>
+                  </>
+                )}
+                
+                {/* Show Restauration card filter for external stagiaires or when type is 'all' */}
+                {(localFilters.type === 'externe' || localFilters.type === 'all') && (
+                  <>
+                    <button
+                      className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                        localFilters.cardFilter === 'carteRestauration_oui' 
+                          ? 'bg-orange-100 text-orange-700 font-medium' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      onClick={() => handleFilterChange('cardFilter', 'carteRestauration_oui')}
+                    >
+                      🍽️ Restauration Oui <span className="ml-1 opacity-60">({getFilterCount('carteRestauration_oui')})</span>
+                    </button>
+                    <button
+                      className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                        localFilters.cardFilter === 'carteRestauration_non' 
+                          ? 'bg-gray-200 text-gray-700 font-medium' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      onClick={() => handleFilterChange('cardFilter', 'carteRestauration_non')}
+                    >
+                      🍽️ Restauration Non <span className="ml-1 opacity-60">({getFilterCount('carteRestauration_non')})</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 

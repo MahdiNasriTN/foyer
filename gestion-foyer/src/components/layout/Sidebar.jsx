@@ -122,19 +122,7 @@ const navItems = [
     category: 'gestion',
     roles: ['admin', 'superadmin'] // Admin and superadmin only
   },
-  { 
-    name: 'Gestion du Personnel', 
-    path: '/personnel', 
-    icon: <UserIcon className="h-5 w-5" />,
-    activeIcon: <UserIconSolid className="h-5 w-5" />,
-    dotColor: 'indigo',
-    description: 'Gestion du personnel',
-    color: '#6366F1',
-    hoverColor: '#818CF8',
-    lightColor: '#EEF2FF',
-    category: 'gestion',
-    roles: ['admin', 'superadmin'] // Admin and superadmin only
-  },
+  
   { 
     name: 'Gestion des Chambres', 
     path: '/chambres', 
@@ -149,15 +137,15 @@ const navItems = [
     roles: ['admin', 'superadmin'] // Admin and superadmin only
   },
   { 
-    name: 'Gestion de la Cuisine', 
-    path: '/cuisine', 
-    icon: <CakeIcon className="h-5 w-5" />,
-    activeIcon: <CakeIconSolid className="h-5 w-5" />,
-    dotColor: 'amber',
-    description: 'Aperçu de la restauration',
-    color: '#F59E0B',
-    hoverColor: '#FBBF24',
-    lightColor: '#FFFBEB',
+    name: 'Gestion du Personnel', 
+    path: '/personnel', 
+    icon: <UserIcon className="h-5 w-5" />,
+    activeIcon: <UserIconSolid className="h-5 w-5" />,
+    dotColor: 'indigo',
+    description: 'Gestion du personnel',
+    color: '#6366F1',
+    hoverColor: '#818CF8',
+    lightColor: '#EEF2FF',
     category: 'gestion',
     roles: ['admin', 'superadmin'] // Admin and superadmin only
   },
@@ -174,6 +162,20 @@ const navItems = [
     category: 'gestion',
     roles: ['superadmin', 'admin'] // Superadmin only
   },
+  { 
+    name: 'Gestion de la Cuisine', 
+    path: '/cuisine', 
+    icon: <CakeIcon className="h-5 w-5" />,
+    activeIcon: <CakeIconSolid className="h-5 w-5" />,
+    dotColor: 'amber',
+    description: 'Aperçu de la restauration',
+    color: '#F59E0B',
+    hoverColor: '#FBBF24',
+    lightColor: '#FFFBEB',
+    category: 'gestion',
+    roles: ['admin', 'superadmin'] // Admin and superadmin only
+  },
+  
   { 
     name: 'Paramètres', 
     path: '/settings', 
@@ -269,16 +271,40 @@ const navItems = [
     
       {/* Header section with logo */}
       <div 
-        className={`flex items-center py-2 px-2 border-b border-gray-800 ${collapsed ? 'justify-center' : ''}`}
+        className={`flex items-center py-3 px-3 border-b border-gray-800 ${collapsed ? 'justify-center' : ''}`}
       >
         {collapsed ? (
-          <div className="w-10 h-10 flex items-center justify-center rounded-lg">
-            <img src="logocenter.png" alt="Logo" className="w-10 h-10 rounded-full" />
+          <div className="w-12 h-12 flex items-center justify-center">
+            <img 
+              src="logo.jpg" 
+              alt="Logo" 
+              className="w-12 h-12"
+              style={{ 
+                maxWidth: '100%',
+                height: 'auto',
+                filter: 'contrast(1.1) brightness(1.1)'
+              }}
+            />
           </div>
         ) : (
-          <div className="flex items-center justify-center w-full h-full">
-            <img style={{ maxWidth: '100%', height:'100px' }} src="logocenter.png" alt="Logo" className="w-full object-cover" />
-            {/* changed w-full h-15 to w-auto h-8 */}
+          <div className="flex items-center w-full space-x-3">
+            <div className="flex-shrink-0">
+              <img 
+                src="logo.jpg" 
+                alt="Logo" 
+                className="w-20 h-20"
+                style={{ 
+                  maxWidth: '100%',
+                  height: 'auto',
+                  filter: 'contrast(1.1) brightness(1.1)'
+                }}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-white text-sm font-semibold leading-tight">
+                Centre Sectoriel de Formation en Cuir et Chaussures de Sakiet Ezzit Sfax
+              </h1>
+            </div>
           </div>
         )}
       </div>

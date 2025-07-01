@@ -159,7 +159,7 @@ export const exportPersonnel = async (filters = {}, format = 'csv') => {
     params.append('format', format);
     
     const response = await axiosInstance.get(`/api/v1/personnel/export?${params.toString()}`, {
-      responseType: format === 'csv' ? 'blob' : 'json'
+      responseType: (format === 'csv' || format === 'excel') ? 'blob' : 'json'
     });
     
     return response;

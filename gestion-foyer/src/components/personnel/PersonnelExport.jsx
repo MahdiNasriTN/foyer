@@ -56,14 +56,16 @@ const PersonnelExport = ({ isOpen, onClose, currentFilters }) => {
   const handleExport = async () => {
     setLoading(true);
     try {
-      const response = await exportPersonnel(exportFilters, 'csv');
+      const response = await exportPersonnel(exportFilters, 'excel');
       
-      // Create and download CSV file
-      const blob = new Blob([response.data], { type: 'text/csv' });
+      // Create and download Excel file
+      const blob = new Blob([response.data], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `personnel_par_poste_${new Date().toISOString().split('T')[0]}.csv`;
+      link.download = `personnel_par_poste_${new Date().toISOString().split('T')[0]}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -163,7 +165,7 @@ const PersonnelExport = ({ isOpen, onClose, currentFilters }) => {
                 ) : (
                   <>
                     <DownloadIcon className="h-4 w-4 mr-2" />
-                    Exporter CSV
+                    Exporter Excel
                   </>
                 )}
               </button>

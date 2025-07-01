@@ -689,7 +689,7 @@ const Dashboard = () => {
       <div className="mx-6 pb-6 border-t border-gray-200 pt-6">
         <div className="flex flex-col sm:flex-row justify-between text-sm text-gray-500">
           <div>
-            <p>© 2025 Gestion du Foyer - Système de gestion intégré</p>
+            <p>© 2025 Centre Sectoriel de Formation en Cuir et Chaussures de Sakiet Ezzit Sfax. Tous droits réservés.</p>
           </div>
           <div className="mt-2 sm:mt-0 flex items-center space-x-4">
             <span className="text-gray-400">Version 1.0.0</span>

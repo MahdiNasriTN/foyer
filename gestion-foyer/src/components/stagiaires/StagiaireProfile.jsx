@@ -167,6 +167,21 @@ const StagiaireProfile = ({ stagiaire, chambre, animation, onBack, onEdit, onDel
                     <p className="text-gray-800">{stagiaire.entreprise}</p>
                   </div>
                 </div>
+
+                {/* Add carteRestauration field for external stagiaires */}
+                {stagiaire.type === 'externe' && (
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center mt-0.5">
+                      <span className="text-orange-600 text-sm">🍽️</span>
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-500">Carte de Restauration</p>
+                      <p className={`text-sm font-medium ${stagiaire.carteRestauration === 'oui' ? 'text-green-600' : 'text-gray-600'}`}>
+                        {stagiaire.carteRestauration === 'oui' ? '✅ Oui' : '❌ Non'}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             

@@ -124,7 +124,7 @@ const Header = ({ onLogout }) => {
             <MenuIcon className="h-6 w-6 text-gray-500" />
           </button>
           <h2 className="text-xl font-semibold text-primary hidden md:block">
-            Centre Sectoriel de Formation en Cuir et Chaussures de Sakiet Ezzit
+            Centre Sectoriel de Formation en Cuir et Chaussures de Sakiet Ezzit Sfax
           </h2>
           <h2 className="text-lg font-semibold text-primary md:hidden">
             Admin Foyer
