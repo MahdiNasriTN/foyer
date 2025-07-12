@@ -4,7 +4,6 @@ import { fetchAllPersonnel, saveGeneralSchedule, fetchGeneralSchedule } from '..
 import { motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable'; // FIXED: Import autoTable as a named export
-import { useUser } from '../../contexts/UserContext'; // Add this import
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -303,7 +302,7 @@ const GeneralSchedule = () => {
         return COLORS[colorIndex] || COLORS[0];
     };
 
-    // Export to PDF function - UPDATED with Director signature section and logo
+    // Export to PDF function - UPDATED with Director signature section
     const exportToPDF = () => {
         try {
             // Create new PDF document
@@ -312,194 +311,169 @@ const GeneralSchedule = () => {
             // Get current date for filename
             const currentDate = new Date().toLocaleDateString('fr-FR');
             
-            // Add logo
-            const logoImg = new Image();
-            logoImg.onload = function() {
-                // Add logo to top left corner
-                doc.addImage(logoImg, 'JPEG', 20, 10, 25, 25); // x, y, width, height
-                
-                // Continue with the rest of the PDF generation after logo is loaded
-                generatePDFContent();
-            };
-            logoImg.onerror = function() {
-                console.warn('Could not load logo, continuing without it');
-                // Continue without logo if it fails to load
-                generatePDFContent();
-            };
-            logoImg.src = '/logo.jpg';
+            // PDF Title
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Planning Général du Personnel', 20, 20);
             
-            // Function to generate the main PDF content
-            const generatePDFContent = () => {
-                // PDF Title (moved to the right to make space for logo)
-                doc.setFontSize(18);
-                doc.setFont('helvetica', 'bold');
-                doc.text('Planning Annuelle du Personnel', 55, 20);
-                // PDF Title (moved to the right to make space for logo)
-                doc.setFontSize(18);
-                doc.setFont('helvetica', 'bold');
-                doc.text('Planning Annuelle du Personnel', 55, 20);
-                
-                // Subtitle with filters info
-                doc.setFontSize(12);
-                doc.setFont('helvetica', 'normal');
-                let subtitle = `Généré le ${currentDate}`;
-                if (filters.name || filters.poste !== 'all') {
-                    subtitle += ' - Filtres appliqués: ';
-                    const activeFilters = [];
-                    if (filters.name) activeFilters.push(`Nom: "${filters.name}"`);
-                    if (filters.poste !== 'all') activeFilters.push(`Poste: ${filters.poste}`);
-                    subtitle += activeFilters.join(', ');
-                }
-                doc.text(subtitle, 55, 30);
-                
-                // Employee count
-                doc.text(`${filteredPersonnel.length} employé${filteredPersonnel.length > 1 ? 's' : ''} affiché${filteredPersonnel.length > 1 ? 's' : ''}`, 55, 38);
+            // Subtitle with filters info
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'normal');
+            let subtitle = `Généré le ${currentDate}`;
+            if (filters.name || filters.poste !== 'all') {
+                subtitle += ' - Filtres appliqués: ';
+                const activeFilters = [];
+                if (filters.name) activeFilters.push(`Nom: "${filters.name}"`);
+                if (filters.poste !== 'all') activeFilters.push(`Poste: ${filters.poste}`);
+                subtitle += activeFilters.join(', ');
+            }
+            doc.text(subtitle, 20, 30);
+            
+            // Employee count
+            doc.text(`${filteredPersonnel.length} employé${filteredPersonnel.length > 1 ? 's' : ''} affiché${filteredPersonnel.length > 1 ? 's' : ''}`, 20, 38);
 
-                // Prepare table data
-                const tableColumns = ['Personnel', 'Poste', ...DAYS];
-                const tableRows = [];
+            // Prepare table data
+            const tableColumns = ['Personnel', 'Poste', ...DAYS, 'Les remarques']; // Add Arabic Notes column
+            const tableRows = [];
 
-                filteredPersonnel.forEach(person => {
-                    const personId = person.id || person._id;
-                    const row = [
-                        `${person.firstName} ${person.lastName}`,
-                        person.poste || 'Non spécifié'
-                    ];
+            filteredPersonnel.forEach(person => {
+                const personId = person.id || person._id;
+                const row = [
+                    `${person.firstName} ${person.lastName}`,
+                    person.poste || 'Non spécifié'
+                ];
 
-                    // Add schedule data for each day
-                    DAYS.forEach(day => {
-                        const shift = getShiftForCell(personId, day);
-                        if (shift) {
-                            if (shift.isDayOff) {
-                                row.push('Repos');
-                            } else {
-                                // Use formatTimeRange for PDF export
-                                let cellContent = shift.startTime + ' => '+ shift.endTime;
-                                if (shift.notes) {
-                                    cellContent += `\n${shift.notes}`;
-                                }
-                                if (shift.tasks && shift.tasks.length > 0) {
-                                    cellContent += `\nTâches: ${shift.tasks.join(', ')}`;
-                                }
-                                row.push(cellContent);
-                            }
+                // Add schedule data for each day
+                DAYS.forEach(day => {
+                    const shift = getShiftForCell(personId, day);
+                    if (shift) {
+                        if (shift.isDayOff) {
+                            row.push('Congé');
                         } else {
-                            row.push('-');
+                            let cellContent = formatTimeRange(shift.startTime, shift.endTime);
+                            if (shift.notes) {
+                                cellContent += `\n${shift.notes}`;
+                            }
+                            if (shift.tasks && shift.tasks.length > 0) {
+                                cellContent += `\nTâches: ${shift.tasks.join(', ')}`;
+                            }
+                            row.push(cellContent);
                         }
-                    });
-
-                    tableRows.push(row);
-                });
-
-                // Generate table using autoTable
-                autoTable(doc, {
-                    head: [tableColumns],
-                    body: tableRows,
-                    startY: 45,
-                    styles: {
-                        fontSize: 8,
-                        cellPadding: 3,
-                        overflow: 'linebreak',
-                        halign: 'left',
-                        valign: 'top'
-                    },
-                    headStyles: {
-                        fillColor: [71, 85, 105], // slate-600
-                        textColor: 255,
-                        fontStyle: 'bold',
-                        fontSize: 9,
-                        halign: 'center'
-                    },
-                    columnStyles: {
-                        0: { cellWidth: 35, halign: 'left' }, // Personnel name
-                        1: { cellWidth: 25, halign: 'left' }, // Poste
-                        2: { cellWidth: 25, halign: 'center' }, // Monday
-                        3: { cellWidth: 25, halign: 'center' }, // Tuesday
-                        4: { cellWidth: 25, halign: 'center' }, // Wednesday
-                        5: { cellWidth: 25, halign: 'center' }, // Thursday
-                        6: { cellWidth: 25, halign: 'center' }, // Friday
-                        7: { cellWidth: 25, halign: 'center' }, // Saturday
-                        8: { cellWidth: 25, halign: 'center' }  // Sunday
-                    },
-                    alternateRowStyles: {
-                        fillColor: [248, 250, 252] // gray-50
-                    },
-                    tableLineColor: [203, 213, 225], // gray-300
-                    tableLineWidth: 0.1,
-                    margin: { left: 15, right: 15 },
-                    // NEW: Add didDrawPage callback to add signature section
-                    didDrawPage: function (data) {
-                        // Get page dimensions
-                        const pageWidth = doc.internal.pageSize.width;
-                        const pageHeight = doc.internal.pageSize.height;
-                        
-                        // NEW: Add signature section at bottom right
-                        const signatureX = pageWidth - 80; // 80mm from right edge
-                        const signatureY = pageHeight - 40; // 40mm from bottom
-                        
-                        // Signature box
-                        doc.setDrawColor(71, 85, 105); // slate-600 color
-                        doc.setLineWidth(0.5);
-                        doc.rect(signatureX, signatureY, 65, 25); // Rectangle for signature
-                        
-                        // Signature label
-                        doc.setFontSize(10);
-                        doc.setFont('helvetica', 'bold');
-                        doc.setTextColor(71, 85, 105); // slate-600 color
-                        doc.text('Directeur De Centre', signatureX + 32.5, signatureY - 3, { align: 'center' });
-                        
-                        // Date and signature lines
-                        doc.setFontSize(8);
-                        doc.setFont('helvetica', 'normal');
-                        doc.setTextColor(107, 114, 128); // gray-500 color
-                        
-                        // Date line
-                        doc.text('Date: _______________', signatureX + 2, signatureY + 8);
-                        
-                        // Signature line
-                        doc.text('Signature:', signatureX + 2, signatureY + 18);
-                        doc.line(signatureX + 20, signatureY + 18, signatureX + 63, signatureY + 18); // Signature line
-                        
-                        // Optional: Add a small watermark/logo area
-                        doc.setFontSize(6);
-                        doc.setTextColor(156, 163, 175); // gray-400 color
-                        doc.text('Approuvé par', signatureX + 32.5, signatureY + 4, { align: 'center' });
+                    } else {
+                        row.push('-');
                     }
                 });
 
-                // Add footer with page numbers (update to avoid overlap with signature)
-                const pageCount = doc.internal.getNumberOfPages();
-                for (let i = 1; i <= pageCount; i++) {
-                    doc.setPage(i);
+                row.push(''); // Add empty cell for "الملاحظات"
+                tableRows.push(row);
+            });
+
+            // Generate table using autoTable
+            autoTable(doc, {
+                head: [tableColumns],
+                body: tableRows,
+                startY: 45,
+                styles: {
+                    fontSize: 8,
+                    cellPadding: 3,
+                    overflow: 'linebreak',
+                    halign: 'left',
+                    valign: 'top'
+                },
+                headStyles: {
+                    fillColor: [71, 85, 105], // slate-600
+                    textColor: 255,
+                    fontStyle: 'bold',
+                    fontSize: 9,
+                    halign: 'center'
+                },
+                columnStyles: {
+                    0: { cellWidth: 35, halign: 'left' }, // Personnel name
+                    1: { cellWidth: 25, halign: 'left' }, // Poste
+                    2: { cellWidth: 25, halign: 'center' }, // Monday
+                    3: { cellWidth: 25, halign: 'center' }, // Tuesday
+                    4: { cellWidth: 25, halign: 'center' }, // Wednesday
+                    5: { cellWidth: 25, halign: 'center' }, // Thursday
+                    6: { cellWidth: 25, halign: 'center' }, // Friday
+                    7: { cellWidth: 25, halign: 'center' }, // Saturday
+                    8: { cellWidth: 25, halign: 'center' }, // Sunday
+                    9: { cellWidth: 30, halign: 'center' }  // Les remarques
+                },
+                alternateRowStyles: {
+                    fillColor: [248, 250, 252] // gray-50
+                },
+                tableLineColor: [203, 213, 225], // gray-300
+                tableLineWidth: 0.1,
+                margin: { left: 15, right: 15 },
+                // NEW: Add didDrawPage callback to add signature section
+                didDrawPage: function (data) {
+                    // Get page dimensions
+                    const pageWidth = doc.internal.pageSize.width;
+                    const pageHeight = doc.internal.pageSize.height;
+                    
+                    // NEW: Add signature section at bottom right
+                    const signatureX = pageWidth - 80; // 80mm from right edge
+                    const signatureY = pageHeight - 40; // 40mm from bottom
+                    
+                    // Signature box
+                    doc.setDrawColor(71, 85, 105); // slate-600 color
+                    doc.setLineWidth(0.5);
+                    doc.rect(signatureX, signatureY, 65, 25); // Rectangle for signature
+                    
+                    // Signature label
                     doc.setFontSize(10);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(71, 85, 105); // slate-600 color
+                    doc.text('Directeur De Centre', signatureX + 32.5, signatureY - 3, { align: 'center' });
+                    
+                    // Date and signature lines
+                    doc.setFontSize(8);
                     doc.setFont('helvetica', 'normal');
                     doc.setTextColor(107, 114, 128); // gray-500 color
                     
-                    // Position page number at bottom left to avoid signature area
-                    doc.text(`Page ${i} sur ${pageCount}`, 20, doc.internal.pageSize.height - 10);
+                    // Date line
+                    doc.text('Date: _______________', signatureX + 2, signatureY + 8);
                     
-                    // NEW: Add generation timestamp at bottom center
-                    doc.setFontSize(8);
+                    // Signature line
+                    doc.text('Signature:', signatureX + 2, signatureY + 18);
+                    doc.line(signatureX + 20, signatureY + 18, signatureX + 63, signatureY + 18); // Signature line
+                    
+                    // Optional: Add a small watermark/logo area
+                    doc.setFontSize(6);
                     doc.setTextColor(156, 163, 175); // gray-400 color
-                    const timestamp = new Date().toLocaleString('fr-FR');
-                    doc.text(`Généré le ${timestamp}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+                    doc.text('Approuvé par', signatureX + 32.5, signatureY + 4, { align: 'center' });
                 }
+            });
 
-                // Save the PDF
-                const fileName = `planning_personnel_${currentDate.replace(/\//g, '-')}.pdf`;
-                doc.save(fileName);
+            // Add footer with page numbers (update to avoid overlap with signature)
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(107, 114, 128); // gray-500 color
                 
-                setSuccess('Export PDF réalisé avec succès !');
-            };
+                // Position page number at bottom left to avoid signature area
+                doc.text(`Page ${i} sur ${pageCount}`, 20, doc.internal.pageSize.height - 10);
+                
+                // NEW: Add generation timestamp and centre name at bottom center
+                doc.setFontSize(8);
+                doc.setTextColor(156, 163, 175); // gray-400 color
+                const timestamp = new Date().toLocaleString('fr-FR');
+                doc.text(`Centre Sectoriel de Formation en Cuir et Chaussures de Sakiet Ezzit`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 18, { align: 'center' });
+                doc.text(`Généré le ${timestamp}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+            }
+
+            // Save the PDF
+            const fileName = `planning_personnel_${currentDate.replace(/\//g, '-')}.pdf`;
+            doc.save(fileName);
+            
+            setSuccess('Export PDF réalisé avec succès !');
         } catch (error) {
             console.error('Error exporting PDF:', error);
             setError('Erreur lors de l\'export PDF');
         }
     };
-
-    const { userRole } = useUser(); // Get user role from context
-
-    const isReadOnly = userRole === 'admin';
 
     if (loading && personnel.length === 0) {
         return (
@@ -724,17 +698,15 @@ const GeneralSchedule = () => {
                                                 <td
                                                     key={`${personId}-${day}`}
                                                     className="p-2 border-r border-gray-200 last:border-r-0 relative align-top h-28"
-                                                    onClick={() => !shift && !isReadOnly && handleCellClick(personId, day, person)}
-                                                    style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
+                                                    onClick={() => !shift && handleCellClick(personId, day, person)}
                                                 >
                                                     {shift ? (
-                                                        <div
+                                                        <div 
                                                             className={`h-full w-full flex flex-col relative group rounded-lg border overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${shift.isDayOff
                                                                 ? 'border-red-200 bg-gradient-to-r from-red-50 to-pink-50'
                                                                 : `${colorScheme.border}`
                                                             }`}
-                                                            onClick={() => !isReadOnly && handleShiftClick(personId, day, person, shift)}
-                                                            style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
+                                                            onClick={() => handleShiftClick(personId, day, person, shift)}
                                                         >
                                                             {shift.isDayOff ? (
                                                                 // Day Off Display
@@ -748,8 +720,7 @@ const GeneralSchedule = () => {
                                                                         )}
                                                                         
                                                                         {/* Action buttons */}
-                                                                        {!isReadOnly && (
-                                                                          <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
@@ -773,7 +744,6 @@ const GeneralSchedule = () => {
                                                                                 <XIcon className="h-3 w-3" />
                                                                             </button>
                                                                         </div>
-                                                                        )}
                                                                     </div>
                                                                 </>
                                                             ) : (
@@ -793,8 +763,7 @@ const GeneralSchedule = () => {
                                                                         </div>
                                                                         
                                                                         {/* Action buttons */}
-                                                                        {!isReadOnly && (
-                                                                          <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
@@ -823,8 +792,7 @@ const GeneralSchedule = () => {
                                                                                     <XIcon className="h-3 w-3" />
                                                                                 )}
                                                                             </button>
-                                                                          </div>
-                                                                        )}
+                                                                        </div>
                                                                     </div>
 
                                                                     {/* Content */}
@@ -856,15 +824,10 @@ const GeneralSchedule = () => {
                                                         </div>
                                                     ) : (
                                                         // Empty cell
-                                                        <div
-                                                            className="flex items-center justify-center h-full w-full cursor-pointer group rounded-lg border border-dashed border-gray-300 hover:border-blue-300 transition-colors"
-                                                            style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
-                                                        >
-                                                            {!isReadOnly && (
-                                                              <div className="rounded-full p-3 bg-gray-50 group-hover:bg-blue-50 transition-colors transform group-hover:scale-110 duration-200">
-                                                                  <PlusIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-500" />
-                                                              </div>
-                                                            )}
+                                                        <div className="flex items-center justify-center h-full w-full cursor-pointer group rounded-lg border border-dashed border-gray-300 hover:border-blue-300 transition-colors">
+                                                            <div className="rounded-full p-3 bg-gray-50 group-hover:bg-blue-50 transition-colors transform group-hover:scale-110 duration-200">
+                                                                <PlusIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-500" />
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </td>
@@ -904,8 +867,8 @@ const GeneralSchedule = () => {
                                     <div className="flex-1">
                                         <h3 className="text-xl font-bold">
                                             {isEditingShift 
-                                                ? (shiftDetails.isDayOff ? 'Modifier le jour de repos' : 'Modifier l\'horaire de travail')
-                                                : (shiftDetails.isDayOff ? 'Marquer comme jour de repos' : 'Ajouter un horaire de travail')
+                                                ? (shiftDetails.isDayOff ? 'Modifier le jour de congé' : 'Modifier l\'horaire de travail')
+                                                : (shiftDetails.isDayOff ? 'Marquer comme jour de congé' : 'Ajouter un horaire de travail')
                                             }
                                         </h3>
                                         <div className="mt-1 flex items-center">
@@ -976,8 +939,8 @@ const GeneralSchedule = () => {
                                                     {shiftDetails.isDayOff && <div className="w-2 h-2 rounded-full bg-white"></div>}
                                                 </div>
                                                 <div>
-                                                    <div className="font-medium text-gray-900">🏖️ Jour de repos</div>
-                                                    <div className="text-sm text-gray-500">Repos</div>
+                                                    <div className="font-medium text-gray-900">🏖️ Jour de congé</div>
+                                                    <div className="text-sm text-gray-500">Repos, congés, vacances</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1119,7 +1082,7 @@ const GeneralSchedule = () => {
                                 {/* Description - always show but change placeholder */}
                                 <div className="mb-6">
                                     <label htmlFor="notes" className="block text-base font-semibold text-gray-800 mb-3">
-                                        {shiftDetails.isDayOff ? 'Motif du repos (optionnel)' : 'Description générale'}
+                                        {shiftDetails.isDayOff ? 'Motif du congé (optionnel)' : 'Description générale'}
                                     </label>
                                     <div className="relative">
                                         <DocumentTextIcon className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
@@ -1129,7 +1092,7 @@ const GeneralSchedule = () => {
                                             value={shiftDetails.notes}
                                             onChange={(e) => setShiftDetails({ ...shiftDetails, notes: e.target.value })}
                                             className="block w-full pl-10 pr-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg shadow-sm resize-none"
-                                            placeholder={shiftDetails.isDayOff ? "repos" : "Description générale de ce créneau horaire..."}
+                                            placeholder={shiftDetails.isDayOff ? "Congés annuels, congé maladie, formation..." : "Description générale de ce créneau horaire..."}
                                         ></textarea>
                                     </div>
                                 </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
-import { fetchAvailableStagiaires, fetchChambreOccupants, fetchAllOccupiedRooms } from '../../services/api';
+import { getAvailableStagiairesForRoom, fetchChambreOccupants, fetchAllOccupiedRooms } from '../../services/api';
 
 const AssignModal = ({ isOpen, onClose, chambre, onAssign }) => {
   const [selectedOccupantIds, setSelectedOccupantIds] = useState([]);
@@ -17,28 +17,20 @@ const AssignModal = ({ isOpen, onClose, chambre, onAssign }) => {
       setIsLoading(true);
       setError(null);
 
-      // Fonction pour charger les données
       const loadData = async () => {
         try {
           // 1. Charger les occupants actuels de la chambre
           const occupantsResponse = await fetchChambreOccupants(chambre.id || chambre._id);
           const occupants = occupantsResponse?.data || [];
           setCurrentOccupants(occupants);
-          
-          
-          // Présélectionner les occupants actuels - make sure to convert to string IDs
+
           const occupantIds = occupants.map(o => o._id).filter(Boolean);
           setSelectedOccupantIds(occupantIds);
-          
-          
-          // 2. Charger tous les stagiaires (y compris ceux assignés à d'autres chambres)
-          const stagiaireResponse = await fetchAvailableStagiaires();
 
-          // Vérifier la structure de la réponse et ajuster en conséquence
+          // 2. Charger seulement les stagiaires internes non assignés à une chambre
+          const stagiaireResponse = await getAvailableStagiairesForRoom(chambre.id || chambre._id);
           let stagiaires = [];
-          if (stagiaireResponse?.data?.stagiaires) {
-            stagiaires = stagiaireResponse.data.stagiaires;
-          } else if (stagiaireResponse?.data) {
+          if (stagiaireResponse?.data) {
             stagiaires = stagiaireResponse.data;
           } else {
             stagiaires = stagiaireResponse || [];
@@ -49,13 +41,9 @@ const AssignModal = ({ isOpen, onClose, chambre, onAssign }) => {
           const occupiedRooms = occupiedRoomsResponse?.data || [];
 
           // 4. Construire un mapping des occupants vers leurs chambres actuelles
-          // (sauf pour les occupants de la chambre actuelle)
           const occupantsMap = {};
           occupiedRooms.forEach(room => {
-            // Ignorer la chambre en cours de modification
             if (room._id === chambre.id || room._id === chambre._id) return;
-
-            // Pour chaque occupant, stocker la chambre où il réside
             (room.occupants || []).forEach(occupantId => {
               occupantsMap[occupantId] = {
                 roomId: room._id,
@@ -63,8 +51,6 @@ const AssignModal = ({ isOpen, onClose, chambre, onAssign }) => {
               };
             });
           });
-
-          // Stocker ce mapping
           setOccupiedRoomsMap(occupantsMap);
 
           // 5. Ajouter l'information de logement aux stagiaires
@@ -75,9 +61,8 @@ const AssignModal = ({ isOpen, onClose, chambre, onAssign }) => {
 
           // 6. Créer la liste finale disponible pour cette chambre
           const availableForSelection = [
-            ...occupants, // Inclure les occupants actuels de cette chambre
+            ...occupants,
             ...stagiairesFull.filter(stagiaire =>
-              // Exclure ceux qui sont déjà occupants de cette chambre pour éviter les doublons
               !occupants.some(occupant => occupant._id === stagiaire._id)
             )
           ];
