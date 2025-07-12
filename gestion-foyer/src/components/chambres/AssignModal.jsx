@@ -36,33 +36,14 @@ const AssignModal = ({ isOpen, onClose, chambre, onAssign }) => {
             stagiaires = stagiaireResponse || [];
           }
 
-          // 3. Charger les informations sur toutes les chambres occupées
-          const occupiedRoomsResponse = await fetchAllOccupiedRooms();
-          const occupiedRooms = occupiedRoomsResponse?.data || [];
+          // 3. Ne garder que les stagiaires internes non assignés (déjà fait par l'API)
+          // 4. Ajouter les occupants actuels à la liste (pour pouvoir les désélectionner)
+          //    -> On ne doit pas ajouter tous les stagiaires, seulement ceux non assignés + occupants actuels
 
-          // 4. Construire un mapping des occupants vers leurs chambres actuelles
-          const occupantsMap = {};
-          occupiedRooms.forEach(room => {
-            if (room._id === chambre.id || room._id === chambre._id) return;
-            (room.occupants || []).forEach(occupantId => {
-              occupantsMap[occupantId] = {
-                roomId: room._id,
-                roomNumber: room.numero
-              };
-            });
-          });
-          setOccupiedRoomsMap(occupantsMap);
-
-          // 5. Ajouter l'information de logement aux stagiaires
-          const stagiairesFull = stagiaires.map(stagiaire => ({
-            ...stagiaire,
-            currentRoom: occupantsMap[stagiaire._id] || null
-          }));
-
-          // 6. Créer la liste finale disponible pour cette chambre
+          // Créer la liste finale : occupants actuels + stagiaires internes non assignés (sans doublons)
           const availableForSelection = [
             ...occupants,
-            ...stagiairesFull.filter(stagiaire =>
+            ...stagiaires.filter(stagiaire =>
               !occupants.some(occupant => occupant._id === stagiaire._id)
             )
           ];
