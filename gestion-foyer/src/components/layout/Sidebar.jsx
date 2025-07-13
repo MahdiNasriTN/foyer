@@ -288,11 +288,11 @@ const navItems = [
           </div>
         ) : (
           <div className="flex items-center w-full space-x-3">
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 overflow-hidden rounded-full">
               <img 
                 src="logocenter.png" 
                 alt="Logo" 
-                className="w-24 h-24 rounded-full"
+                className="w-24 h-24"
                 style={{ 
                   maxWidth: '100%',
                   height: 'auto',
