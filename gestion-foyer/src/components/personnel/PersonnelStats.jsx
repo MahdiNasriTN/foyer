@@ -9,24 +9,22 @@ import {
 } from '@heroicons/react/outline';
 
 const PersonnelStats = ({ stats }) => {
-  // Liste des départements avec leurs couleurs associées
-  const departmentColors = {
-    'Administration': 'blue',
-    'Ressources Humaines': 'indigo',
-    'Sécurité': 'purple',
-    'Restauration': 'orange',
-    'Technique': 'teal',
-    'Hébergement': 'green',
-    'default': 'gray'
-  };
+  // Convert department breakdown to object for easier mapping
+  const departments = {};
+  (stats.departmentBreakdown || []).forEach(dep => {
+    departments[dep._id || 'Non spécifié'] = dep.count;
+  });
 
-  const getColorClass = (department, type) => {
-    const color = departmentColors[department] || departmentColors.default;
-    if (type === 'bg') return `bg-${color}-100`;
-    if (type === 'text') return `text-${color}-600`;
-    if (type === 'border') return `border-${color}-200`;
-    return '';
-  };
+  // Example: If your backend adds these fields, use them directly
+  const nouveaux = stats.recentHires ?? 0;
+  const presents = stats.presents ?? 0;
+  const absents = stats.absents ?? 0;
+  const enRepos = stats.enRepos ?? 0;
+  const ceMois = stats.ceMois ?? 0;
+
+  // Fallback: If not present, you can hide or show 0
+
+  const activeRate = stats.total ? Math.round((stats.active / stats.total) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -58,11 +56,11 @@ const PersonnelStats = ({ stats }) => {
             <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-green-500 rounded-full" 
-                style={{ width: `${stats.activeRate}%` }}
+                style={{ width: `${activeRate}%` }}
               ></div>
             </div>
             <p className="text-xs text-right mt-1 text-gray-500">
-              {stats.activeRate}% actifs
+              {activeRate}% actifs
             </p>
           </div>
         </div>
@@ -81,11 +79,11 @@ const PersonnelStats = ({ stats }) => {
             <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-amber-500 rounded-full" 
-                style={{ width: `${100 - stats.activeRate}%` }}
+                style={{ width: `${100 - activeRate}%` }}
               ></div>
             </div>
             <p className="text-xs text-right mt-1 text-gray-500">
-              {100 - stats.activeRate}% inactifs
+              {100 - activeRate}% inactifs
             </p>
           </div>
         </div>
@@ -97,28 +95,28 @@ const PersonnelStats = ({ stats }) => {
             </div>
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-500">Départements</p>
-              <p className="text-2xl font-bold text-gray-800">{Object.keys(stats.departments || {}).length}</p>
+              <p className="text-2xl font-bold text-gray-800">{Object.keys(departments).length}</p>
             </div>
           </div>
         </div>
       </div>
       
       {/* Répartition par département */}
-      {stats.departments && Object.keys(stats.departments).length > 0 && (
+      {Object.keys(departments).length > 0 && (
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
           <h3 className="text-base font-medium text-gray-700 mb-4">Répartition par département</h3>
           <div className="space-y-4">
-            {Object.entries(stats.departments).map(([department, count]) => {
+            {Object.entries(departments).map(([department, count]) => {
               const percentage = Math.round((count / stats.total) * 100);
               return (
                 <div key={department} className="flex flex-col">
                   <div className="flex justify-between items-center mb-1">
                     <div className="flex items-center">
-                      <div className={`w-3 h-3 rounded-full ${getColorClass(department, 'bg')} mr-2`}></div>
+                      <div className="w-3 h-3 rounded-full bg-gray-200 mr-2"></div>
                       <span className="text-sm font-medium text-gray-600">{department}</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <span className={`text-xs font-medium ${getColorClass(department, 'text')}`}>
+                      <span className="text-xs font-medium text-gray-700">
                         {count} employés
                       </span>
                       <span className="text-xs text-gray-500">
@@ -128,7 +126,7 @@ const PersonnelStats = ({ stats }) => {
                   </div>
                   <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div 
-                      className={`h-full ${getColorClass(department, 'bg')}`} 
+                      className="h-full bg-gray-300" 
                       style={{ width: `${percentage}%` }}
                     ></div>
                   </div>
@@ -138,8 +136,8 @@ const PersonnelStats = ({ stats }) => {
           </div>
         </div>
       )}
-      
-      {/* Activité du personnel (mock) */}
+
+      {/* Activité du personnel */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
         <h3 className="text-base font-medium text-gray-700 mb-4">Activité du personnel</h3>
         <div className="flex justify-between items-center text-sm">
@@ -148,7 +146,7 @@ const PersonnelStats = ({ stats }) => {
               <UserIcon className="h-5 w-5 text-blue-600" />
             </div>
             <span className="text-xs font-medium text-gray-600">Nouveaux</span>
-            <span className="text-sm font-bold text-gray-800">3</span>
+            <span className="text-sm font-bold text-gray-800">{nouveaux}</span>
           </div>
           
           <div className="flex flex-col items-center p-3">
@@ -156,7 +154,7 @@ const PersonnelStats = ({ stats }) => {
               <CheckCircleIcon className="h-5 w-5 text-green-600" />
             </div>
             <span className="text-xs font-medium text-gray-600">Présents</span>
-            <span className="text-sm font-bold text-gray-800">12</span>
+            <span className="text-sm font-bold text-gray-800">{presents}</span>
           </div>
           
           <div className="flex flex-col items-center p-3">
@@ -166,7 +164,7 @@ const PersonnelStats = ({ stats }) => {
               </svg>
             </div>
             <span className="text-xs font-medium text-gray-600">Absents</span>
-            <span className="text-sm font-bold text-gray-800">2</span>
+            <span className="text-sm font-bold text-gray-800">{absents}</span>
           </div>
           
           <div className="flex flex-col items-center p-3">
@@ -174,7 +172,7 @@ const PersonnelStats = ({ stats }) => {
               <ClockIcon className="h-5 w-5 text-amber-600" />
             </div>
             <span className="text-xs font-medium text-gray-600">En Repos</span>
-            <span className="text-sm font-bold text-gray-800">4</span>
+            <span className="text-sm font-bold text-gray-800">{enRepos}</span>
           </div>
           
           <div className="flex flex-col items-center p-3">
@@ -184,7 +182,7 @@ const PersonnelStats = ({ stats }) => {
               </svg>
             </div>
             <span className="text-xs font-medium text-gray-600">Ce mois</span>
-            <span className="text-sm font-bold text-gray-800">21</span>
+            <span className="text-sm font-bold text-gray-800">{ceMois}</span>
           </div>
         </div>
       </div>

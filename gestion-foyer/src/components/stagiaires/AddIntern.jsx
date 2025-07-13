@@ -335,7 +335,7 @@ const AddIntern = ({ onCancel, onSave, initialData = null, isEditing = false }) 
       </div>
 
       <h2 className="text-4xl font-bold text-blue-800 mb-5 text-center">
-        {isEditing ? 'Modifier un Stagiaire' : 'Ajouter un Stagiaire'}
+        {isEditing ? 'Modifier un Stagiaire Interne' : 'Ajouter un Stagiaire Interne'}
       </h2>
 
       {error && (
