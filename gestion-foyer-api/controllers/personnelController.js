@@ -399,46 +399,42 @@ exports.getPersonnelStats = async (req, res) => {
   try {
     // Get total count
     const totalPersonnel = await Personnel.countDocuments();
-    
-    // Get active count
     const activePersonnel = await Personnel.countDocuments({ statut: 'actif' });
-    
-    // Get inactive count
     const inactivePersonnel = await Personnel.countDocuments({ statut: 'inactif' });
-    
+
     // Get count by department
     const departmentStats = await Personnel.aggregate([
-      {
-        $group: {
-          _id: '$departement',
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { count: -1 }
-      }
+      { $group: { _id: '$departement', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
     ]);
-    
+
     // Get count by position
     const positionStats = await Personnel.aggregate([
-      {
-        $group: {
-          _id: '$poste',
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { count: -1 }
-      }
+      { $group: { _id: '$poste', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
     ]);
     
-    // Get recent hires (last 30 days)
+    // Recent hires (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
     const recentHires = await Personnel.countDocuments({
       dateEmbauche: { $gte: thirtyDaysAgo }
     });
+
+    // --- NEW: Calculate "présents", "absents", "enRepos", "ceMois" ---
+    // You must have a way to know presence/absence/repose in your Personnel or related collection.
+    // For demo, we'll use random or dummy values. Replace with your real logic!
+
+    // Example: If you have a "presence" field or a related collection, use it here.
+    // Otherwise, you can set all as 0 or use a placeholder.
+
+    // For demonstration, let's say all actives are "présents"
+    const presents = activePersonnel;
+    // All inactives are "absents"
+    const absents = inactivePersonnel;
+    // "En repos" and "Ce mois" are set to 0 unless you have logic for them
+    const enRepos = 0;
+    const ceMois = recentHires;
 
     res.status(200).json({
       status: 'success',
@@ -449,7 +445,11 @@ exports.getPersonnelStats = async (req, res) => {
           inactive: inactivePersonnel,
           recentHires,
           departmentBreakdown: departmentStats,
-          positionBreakdown: positionStats
+          positionBreakdown: positionStats,
+          presents,
+          absents,
+          enRepos,
+          ceMois
         }
       }
     });
