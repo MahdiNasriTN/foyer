@@ -292,7 +292,7 @@ const navItems = [
               <img 
                 src="logocenter.png" 
                 alt="Logo" 
-                className="w-20 h-20"
+                className="w-24 h-24 rounded-full"
                 style={{ 
                   maxWidth: '100%',
                   height: 'auto',
@@ -302,7 +302,7 @@ const navItems = [
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-white text-sm font-semibold leading-tight">
-                Centre Sectoriel de Formation en Cuir et Chaussures de Sakiet Ezzit Sfax
+                CSFCC Sfax
               </h1>
             </div>
           </div>
