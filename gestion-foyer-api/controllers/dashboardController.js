@@ -1,6 +1,7 @@
 const Chambre = require('../models/chambre');
 const Stagiaire = require('../models/stagiaire');
 const User = require('../models/user');
+const Personnel = require('../models/personnel'); // Add this import
 
 exports.getDashboardStats = async (req, res) => {
   try {
@@ -14,6 +15,9 @@ exports.getDashboardStats = async (req, res) => {
 
     // Fetch all users (personnel)
     const users = await User.find().lean();
+
+    // Fetch all personnel (staff)
+    const personnel = await Personnel.find().lean();
 
     // Calculate room statistics
     const totalChambres = chambres.length;
@@ -53,7 +57,14 @@ exports.getDashboardStats = async (req, res) => {
     });
 
     // Calculate staff statistics
-    const totalStaff = users.length;
+    const totalStaff = personnel.length;
+
+    // Dynamic breakdown by poste
+    const staffBreakdown = {};
+    personnel.forEach(p => {
+      const poste = (p.poste || 'Autre').trim();
+      staffBreakdown[poste] = (staffBreakdown[poste] || 0) + 1;
+    });
 
     // Additional room statistics by floor
     const roomsByFloor = {
@@ -107,9 +118,7 @@ exports.getDashboardStats = async (req, res) => {
       },
       staff: {
         total: totalStaff,
-        administrators: Math.ceil(totalStaff * 0.3),
-        supervisors: Math.ceil(totalStaff * 0.5),
-        maintenance: Math.floor(totalStaff * 0.2)
+        breakdown: staffBreakdown
       },
       recentActivity: recentActivity,
       lastUpdated: new Date()
