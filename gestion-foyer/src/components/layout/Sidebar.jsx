@@ -276,7 +276,7 @@ const navItems = [
         {collapsed ? (
           <div className="w-12 h-12 flex items-center justify-center">
             <img 
-              src="logo.jpg" 
+              src="logocenter.png" 
               alt="Logo" 
               className="w-12 h-12"
               style={{ 
@@ -290,7 +290,7 @@ const navItems = [
           <div className="flex items-center w-full space-x-3">
             <div className="flex-shrink-0">
               <img 
-                src="logo.jpg" 
+                src="logocenter.png" 
                 alt="Logo" 
                 className="w-20 h-20"
                 style={{ 
