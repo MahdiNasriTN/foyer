@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PlusIcon, XIcon, ChevronDownIcon, ClockIcon, DocumentTextIcon, BadgeCheckIcon, DownloadIcon } from '@heroicons/react/outline';
-import { fetchAllPersonnel, saveGeneralSchedule, fetchGeneralSchedule } from '../../services/scheduleService';
+import { fetchAllPersonnel, saveGeneralSchedule, fetchGeneralSchedule, deleteShift } from '../../services/scheduleService';
 import { motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable'; // FIXED: Import autoTable as a named export
@@ -35,6 +35,8 @@ const GeneralSchedule = () => {
     const [newTask, setNewTask] = useState('');
     const [isEditingShift, setIsEditingShift] = useState(false);
     const [editingShiftData, setEditingShiftData] = useState(null);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [pendingDelete, setPendingDelete] = useState(null); // {personnelId, day, person}
 
     // NEW: Add filter states
     const [filters, setFilters] = useState({
@@ -229,25 +231,20 @@ const GeneralSchedule = () => {
             setSaving(true);
             setError(null);
 
-            const newScheduleData = { ...scheduleData };
+            // Call backend to delete the shift
+            await deleteShift(personnelId, day);
 
+            // Remove from local state
+            const newScheduleData = { ...scheduleData };
             if (newScheduleData[personnelId] && newScheduleData[personnelId][day]) {
                 delete newScheduleData[personnelId][day];
-
-                // If this personnel has no more shifts, remove the entry
                 if (Object.keys(newScheduleData[personnelId]).length === 0) {
                     delete newScheduleData[personnelId];
                 }
-
-                // Update state first
                 setScheduleData(newScheduleData);
-
-                // Save to backend immediately
-                console.log('Saving updated schedule data:', newScheduleData);
-                await saveGeneralSchedule(newScheduleData);
-
-                setSuccess('Horaire supprimé avec succès !');
             }
+
+            setSuccess('Horaire supprimé avec succès !');
         } catch (err) {
             console.error('Error deleting schedule:', err);
             setError(err.message || 'Erreur lors de la suppression de l\'horaire');
@@ -260,7 +257,7 @@ const GeneralSchedule = () => {
     const getShiftDuration = (shift) => {
         const startTime = shift.startTime;
         const endTime = shift.endTime;
-        
+
         if (endTime > startTime) {
             // Same day shift
             const hours = endTime - startTime;
@@ -284,7 +281,7 @@ const GeneralSchedule = () => {
     const formatTimeRange = (startTime, endTime) => {
         const start = formatTime(startTime);
         const end = formatTime(endTime);
-        
+
         if (endTime > startTime) {
             // Same day
             return `${start} → ${end}`;
@@ -308,26 +305,26 @@ const GeneralSchedule = () => {
         try {
             // Create new PDF document
             const doc = new jsPDF('l', 'mm', 'a4'); // landscape orientation
-            
+
             // Get current date for filename
             const currentDate = new Date().toLocaleDateString('fr-FR');
-            
+
             // Add logo
             const logoImg = new Image();
-            logoImg.onload = function() {
+            logoImg.onload = function () {
                 // Add logo to top left corner
                 doc.addImage(logoImg, 'JPEG', 20, 10, 25, 25); // x, y, width, height
-                
+
                 // Continue with the rest of the PDF generation after logo is loaded
                 generatePDFContent();
             };
-            logoImg.onerror = function() {
+            logoImg.onerror = function () {
                 console.warn('Could not load logo, continuing without it');
                 // Continue without logo if it fails to load
                 generatePDFContent();
             };
-            logoImg.src = '/logo.jpg';
-            
+            logoImg.src = '/logocenter.png';
+
             // Function to generate the main PDF content
             const generatePDFContent = () => {
                 // PDF Title (moved to the right to make space for logo)
@@ -338,7 +335,7 @@ const GeneralSchedule = () => {
                 doc.setFontSize(18);
                 doc.setFont('helvetica', 'bold');
                 doc.text('Planning Annuelle du Personnel', 55, 20);
-                
+
                 // Subtitle with filters info
                 doc.setFontSize(12);
                 doc.setFont('helvetica', 'normal');
@@ -351,7 +348,7 @@ const GeneralSchedule = () => {
                     subtitle += activeFilters.join(', ');
                 }
                 doc.text(subtitle, 55, 30);
-                
+
                 // Employee count
                 doc.text(`${filteredPersonnel.length} employé${filteredPersonnel.length > 1 ? 's' : ''} affiché${filteredPersonnel.length > 1 ? 's' : ''}`, 55, 38);
 
@@ -375,7 +372,7 @@ const GeneralSchedule = () => {
                                 row.push('Repos');
                             } else {
                                 // Use formatTimeRange for PDF export
-                                let cellContent = shift.startTime + ' => '+ shift.endTime;
+                                let cellContent = shift.startTime + ' => ' + shift.endTime;
                                 if (shift.notes) {
                                     cellContent += `\n${shift.notes}`;
                                 }
@@ -435,34 +432,34 @@ const GeneralSchedule = () => {
                         // Get page dimensions
                         const pageWidth = doc.internal.pageSize.width;
                         const pageHeight = doc.internal.pageSize.height;
-                        
+
                         // NEW: Add signature section at bottom right
                         const signatureX = pageWidth - 80; // 80mm from right edge
                         const signatureY = pageHeight - 40; // 40mm from bottom
-                        
+
                         // Signature box
                         doc.setDrawColor(71, 85, 105); // slate-600 color
                         doc.setLineWidth(0.5);
                         doc.rect(signatureX, signatureY, 65, 25); // Rectangle for signature
-                        
+
                         // Signature label
                         doc.setFontSize(10);
                         doc.setFont('helvetica', 'bold');
                         doc.setTextColor(71, 85, 105); // slate-600 color
                         doc.text('Directeur De Centre', signatureX + 32.5, signatureY - 3, { align: 'center' });
-                        
+
                         // Date and signature lines
                         doc.setFontSize(8);
                         doc.setFont('helvetica', 'normal');
                         doc.setTextColor(107, 114, 128); // gray-500 color
-                        
+
                         // Date line
                         doc.text('Date: _______________', signatureX + 2, signatureY + 8);
-                        
+
                         // Signature line
                         doc.text('Signature:', signatureX + 2, signatureY + 18);
                         doc.line(signatureX + 20, signatureY + 18, signatureX + 63, signatureY + 18); // Signature line
-                        
+
                         // Optional: Add a small watermark/logo area
                         doc.setFontSize(6);
                         doc.setTextColor(156, 163, 175); // gray-400 color
@@ -477,10 +474,10 @@ const GeneralSchedule = () => {
                     doc.setFontSize(10);
                     doc.setFont('helvetica', 'normal');
                     doc.setTextColor(107, 114, 128); // gray-500 color
-                    
+
                     // Position page number at bottom left to avoid signature area
                     doc.text(`Page ${i} sur ${pageCount}`, 20, doc.internal.pageSize.height - 10);
-                    
+
                     // NEW: Add generation timestamp at bottom center
                     doc.setFontSize(8);
                     doc.setTextColor(156, 163, 175); // gray-400 color
@@ -492,7 +489,7 @@ const GeneralSchedule = () => {
                 // Save the PDF
                 const fileName = `planning_personnel_${currentDate.replace(/\//g, '-')}.pdf`;
                 doc.save(fileName);
-                
+
                 setSuccess('Export PDF réalisé avec succès !');
             };
         } catch (error) {
@@ -736,7 +733,7 @@ const GeneralSchedule = () => {
                                                             className={`h-full w-full flex flex-col relative group rounded-lg border overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${shift.isDayOff
                                                                 ? 'border-red-200 bg-gradient-to-r from-red-50 to-pink-50'
                                                                 : `${colorScheme.border}`
-                                                            }`}
+                                                                }`}
                                                             onClick={() => !isReadOnly && handleShiftClick(personId, day, person, shift)}
                                                             style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
                                                         >
@@ -750,33 +747,35 @@ const GeneralSchedule = () => {
                                                                         {shift.notes && (
                                                                             <p className="text-xs text-red-600 mt-1 line-clamp-2">{shift.notes}</p>
                                                                         )}
-                                                                        
+
                                                                         {/* Action buttons */}
                                                                         {!isReadOnly && (
-                                                                          <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    handleShiftClick(personId, day, person, shift);
-                                                                                }}
-                                                                                className="p-1 text-gray-400 hover:text-blue-500 bg-white/80 rounded transition-colors"
-                                                                                title="Modifier"
-                                                                            >
-                                                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                                                </svg>
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    handleDeleteShift(personId, day);
-                                                                                }}
-                                                                                className="p-1 text-gray-400 hover:text-red-500 bg-white/80 rounded transition-colors"
-                                                                                title="Supprimer"
-                                                                            >
-                                                                                <XIcon className="h-3 w-3" />
-                                                                            </button>
-                                                                        </div>
+                                                                            <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleShiftClick(personId, day, person, shift);
+                                                                                    }}
+                                                                                    className="p-1 text-gray-400 hover:text-blue-500 bg-white/80 rounded transition-colors"
+                                                                                    title="Modifier"
+                                                                                >
+                                                                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                                    </svg>
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        setPendingDelete({ personnelId: personId, day, person });
+                                                                                        setDeleteModalOpen(true);
+                                                                                    }}
+                                                                                    disabled={saving}
+                                                                                    className="p-1 text-gray-400 hover:text-red-500 bg-white/80 rounded transition-colors disabled:opacity-50"
+                                                                                    title="Supprimer"
+                                                                                >
+                                                                                    <XIcon className="h-3 w-3" />
+                                                                                </button>
+                                                                            </div>
                                                                         )}
                                                                     </div>
                                                                 </>
@@ -795,39 +794,36 @@ const GeneralSchedule = () => {
                                                                                 {getShiftDuration(shift)}
                                                                             </span>
                                                                         </div>
-                                                                        
+
                                                                         {/* Action buttons */}
                                                                         {!isReadOnly && (
-                                                                          <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    handleShiftClick(personId, day, person, shift);
-                                                                                }}
-                                                                                disabled={saving}
-                                                                                className="p-1 text-gray-400 hover:text-blue-500 bg-white/80 rounded transition-colors disabled:opacity-50"
-                                                                                title="Modifier"
-                                                                            >
-                                                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                                                </svg>
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    handleDeleteShift(personId, day);
-                                                                                }}
-                                                                                disabled={saving}
-                                                                                className="p-1 text-gray-400 hover:text-red-500 bg-white/80 rounded transition-colors disabled:opacity-50"
-                                                                                title="Supprimer"
-                                                                            >
-                                                                                {saving ? (
-                                                                                    <span className="inline-block w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                                                                ) : (
+                                                                            <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleShiftClick(personId, day, person, shift);
+                                                                                    }}
+                                                                                    disabled={saving}
+                                                                                    className="p-1 text-gray-400 hover:text-blue-500 bg-white/80 rounded transition-colors disabled:opacity-50"
+                                                                                    title="Modifier"
+                                                                                >
+                                                                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                                    </svg>
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        setPendingDelete({ personnelId: personId, day, person });
+                                                                                        setDeleteModalOpen(true);
+                                                                                    }}
+                                                                                    disabled={saving}
+                                                                                    className="p-1 text-gray-400 hover:text-red-500 bg-white/80 rounded transition-colors disabled:opacity-50"
+                                                                                    title="Supprimer"
+                                                                                >
                                                                                     <XIcon className="h-3 w-3" />
-                                                                                )}
-                                                                            </button>
-                                                                          </div>
+                                                                                </button>
+                                                                            </div>
                                                                         )}
                                                                     </div>
 
@@ -848,7 +844,7 @@ const GeneralSchedule = () => {
                                                                             </ul>
                                                                         )}
                                                                     </div>
-                                                                    
+
                                                                     {/* Hover overlay with edit hint */}
                                                                     <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                         <div className="bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1 text-xs font-medium text-gray-700 shadow-lg">
@@ -865,9 +861,9 @@ const GeneralSchedule = () => {
                                                             style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
                                                         >
                                                             {!isReadOnly && (
-                                                              <div className="rounded-full p-3 bg-gray-50 group-hover:bg-blue-50 transition-colors transform group-hover:scale-110 duration-200">
-                                                                  <PlusIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-500" />
-                                                              </div>
+                                                                <div className="rounded-full p-3 bg-gray-50 group-hover:bg-blue-50 transition-colors transform group-hover:scale-110 duration-200">
+                                                                    <PlusIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-500" />
+                                                                </div>
                                                             )}
                                                         </div>
                                                     )}
@@ -907,7 +903,7 @@ const GeneralSchedule = () => {
                                 <div className="flex justify-between items-center">
                                     <div className="flex-1">
                                         <h3 className="text-xl font-bold">
-                                            {isEditingShift 
+                                            {isEditingShift
                                                 ? (shiftDetails.isDayOff ? 'Modifier le jour de repos' : 'Modifier l\'horaire de travail')
                                                 : (shiftDetails.isDayOff ? 'Marquer comme jour de repos' : 'Ajouter un horaire de travail')
                                             }
@@ -951,8 +947,8 @@ const GeneralSchedule = () => {
                                         <div
                                             onClick={() => setShiftDetails({ ...shiftDetails, isDayOff: false })}
                                             className={`p-4 border rounded-lg cursor-pointer transition-all duration-200 ${!shiftDetails.isDayOff
-                                                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                                                    : 'border-gray-300 bg-white hover:border-gray-400'
+                                                ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                                                : 'border-gray-300 bg-white hover:border-gray-400'
                                                 }`}
                                         >
                                             <div className="flex items-center">
@@ -970,8 +966,8 @@ const GeneralSchedule = () => {
                                         <div
                                             onClick={() => setShiftDetails({ ...shiftDetails, isDayOff: true })}
                                             className={`p-4 border rounded-lg cursor-pointer transition-all duration-200 ${shiftDetails.isDayOff
-                                                    ? 'border-red-500 bg-red-50 ring-2 ring-red-200'
-                                                    : 'border-gray-300 bg-white hover:border-gray-400'
+                                                ? 'border-red-500 bg-red-50 ring-2 ring-red-200'
+                                                : 'border-gray-300 bg-white hover:border-gray-400'
                                                 }`}
                                         >
                                             <div className="flex items-center">
@@ -1225,6 +1221,52 @@ const GeneralSchedule = () => {
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Delete Confirmation Modal - NEW */}
+            {deleteModalOpen && pendingDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+                    <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full relative">
+                        <div className="flex items-center">
+                            <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                                <XIcon className="h-6 w-6 text-red-600" />
+                            </div>
+                            <div className="ml-4">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    Supprimer ce planning&nbsp;?
+                                </h3>
+                                <p className="mt-2 text-sm text-gray-500">
+                                    Êtes-vous sûr de vouloir supprimer le planning de&nbsp;
+                                    <span className="font-semibold text-gray-700">
+                                        {pendingDelete.person?.firstName} {pendingDelete.person?.lastName}
+                                    </span> pour <span className="font-semibold text-blue-700">{pendingDelete.day}</span> ?
+                                    <br />
+                                    Cette action est irréversible.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                                onClick={() => setDeleteModalOpen(false)}
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+                                onClick={async () => {
+                                    setDeleteModalOpen(false);
+                                    if (pendingDelete) {
+                                        await handleDeleteShift(pendingDelete.personnelId, pendingDelete.day);
+                                        setPendingDelete(null);
+                                    }
+                                }}
+                            >
+                                Supprimer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

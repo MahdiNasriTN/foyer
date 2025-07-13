@@ -86,3 +86,14 @@ export const fetchScheduleSummary = async () => {
     throw error.response?.data || error;
   }
 };
+
+export const deleteShift = async (personnelId, day) => {
+  try {
+    // FIXED: Add /shift/ to the endpoint
+    const response = await API.delete(`/schedules/shift/${personnelId}/${day}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting shift:', error);
+    throw error.response?.data || error;
+  }
+};

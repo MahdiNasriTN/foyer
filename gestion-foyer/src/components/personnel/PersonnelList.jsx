@@ -207,7 +207,7 @@ const PersonnelList = ({
                   {/* Delete button - only show if user can delete */}
                   {permissions.canDelete && (
                     <button
-                      onClick={() => onDelete && onDelete(employee)}
+                      onClick={() => onDelete && onDelete(employee.id)}
                       className="text-red-600 hover:text-red-800"
                       title="Supprimer"
                     >

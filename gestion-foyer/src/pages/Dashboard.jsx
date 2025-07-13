@@ -395,33 +395,32 @@ const PersonnelOverview = ({ staff, loading }) => {
     );
   }
 
+  // Use dynamic breakdown
+  const roles = staff.breakdown ? Object.entries(staff.breakdown) : [];
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6">
       <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
         <UserIcon className="h-5 w-5 text-indigo-600 mr-2" />
         Personnel du foyer
       </h4>
-      
       <div className="text-center py-8">
         <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">
           <UserIcon className="h-8 w-8 text-indigo-600" />
         </div>
         <div className="text-3xl font-bold text-gray-900 mb-2">{staff.total || 0}</div>
         <div className="text-gray-600">Membres du personnel</div>
-        
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="font-semibold text-gray-800">Administrateurs</div>
-            <div className="text-gray-600">{staff.administrators || 0}</div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="font-semibold text-gray-800">Surveillants</div>
-            <div className="text-gray-600">{staff.supervisors || 0}</div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="font-semibold text-gray-800">Maintenance</div>
-            <div className="text-gray-600">{staff.maintenance || 0}</div>
-          </div>
+          {roles.length > 0 ? (
+            roles.map(([role, count]) => (
+              <div key={role} className="bg-gray-50 rounded-lg p-3">
+                <div className="font-semibold text-gray-800">{role}</div>
+                <div className="text-gray-600">{count}</div>
+              </div>
+            ))
+          ) : (
+            <div className="text-gray-500 col-span-3">Aucun rôle trouvé</div>
+          )}
         </div>
       </div>
     </div>

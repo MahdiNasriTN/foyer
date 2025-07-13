@@ -147,9 +147,9 @@ const Personnel = () => {
     setSortOrder(newSortOrder);
   };
 
-  // Fonction pour obtenir un employé par son ID
-  const getEmployeeById = (id) => {
-    return personnel.find(employee => employee.id === id) || null;
+  // Helper function
+  const getEmployeeById = (id, personnelList) => {
+    return personnelList.find(employee => employee.id === id) || null;
   };
 
   // Vérifier si un employé est actif
@@ -311,7 +311,7 @@ const Personnel = () => {
 
   // Ouvrir la modal de confirmation de suppression
   const handleOpenDeleteModal = (id) => {
-    setCurrentEmployee(getEmployeeById(id));
+    setCurrentEmployee(getEmployeeById(id, personnel));
     setModalType('delete');
     setModalOpen(true);
   };
@@ -509,7 +509,7 @@ const Personnel = () => {
         </>
       )}
 
-      {modalOpen && modalType === 'delete' && (
+      {modalOpen && modalType === 'delete' && currentEmployee && (
         <PersonnelModal
           isOpen={true}
           modalType="delete"
