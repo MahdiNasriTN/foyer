@@ -118,7 +118,7 @@ const Personnel = () => {
   const loadStats = async () => {
     try {
       const response = await getPersonnelStats();
-      setStats(response.data);
+      setStats(response.data.stats); // <-- FIX: use .stats, not .data
     } catch (error) {
       console.error('Error loading stats:', error);
     }
