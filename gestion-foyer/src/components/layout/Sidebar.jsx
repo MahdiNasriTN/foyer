@@ -302,7 +302,7 @@ const navItems = [
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-white text-lg font-bold leading-tight">
-                CSFCC Sfax - Centre de Formation
+                CSFCC Sfax
               </h1>
             </div>
           </div>
